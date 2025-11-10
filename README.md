@@ -30,8 +30,8 @@
 
 1.  Clone this repository:
     ```bash
-    git clone [https://github.com/yourusername/pathseeker.git](https://github.com/yourusername/pathseeker.git)
-    cd pathseeker
+    git clone https://github.com/alteracctive/pathfinder.git
+    cd pathfinder
     ```
 2.  Ensure you have the `icons` folder in the same directory as the main script, containing all necessary `.png` and `.ico` assets.
 3.  Run the application:
@@ -68,5 +68,3 @@ Use the checkboxes on the top right to visualize how the program interprets your
 * **Path:** Draws lines representing all valid connections (edges) between vertices.
 * **Solution:** Highlights the shortest path from Start to End.
 * **FastCalc:** Toggles an optimized calculation mode for complex grids.
-
-## 📂 Project Structure
