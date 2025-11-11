@@ -6,12 +6,19 @@ from tkinter import tix
 from tkinter import messagebox
 from ctypes import windll # fix blurry
 from collections import defaultdict
+import sys
+import os
+
+def resource_path(relative_path):
+    # Get absolute path to resource, works for dev and for PyInstaller
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 # initializing window -------------------------------------
 window = tix.Tk()
 windll.shcore.SetProcessDpiAwareness(1) # fix blurry
 window.title('Pathseeker by Altah')
-window.iconbitmap("icons/icon.ico")
+window.iconbitmap(resource_path("icons/icon.ico"))
 window.resizable(width=False, height=False) # lock size
 window.state("zoomed")
 
@@ -80,26 +87,26 @@ archiveTimer_Solution=[]
 archiveTimer_Path=[]
 lastArchiveTimer_Path=0
     ## image (original size 128*128) (size in app 32*32) -------------------------------------
-Img_Mode_Maze = tk.PhotoImage(file='icons/Mode_Maze.png').subsample(4)
-Img_Mode_Point = tk.PhotoImage(file='icons/Mode_Point.png').subsample(4)
-Img_Maze_SelectAll = tk.PhotoImage(file='icons/Maze_SelectAll.png').subsample(4)
-Img_Maze_UnselectAll = tk.PhotoImage(file='icons/Maze_UnselectAll.png').subsample(4)
-Img_Maze_SelectCell = tk.PhotoImage(file='icons/Maze_SelectCell.png').subsample(4)
-Img_Maze_UnselectCell = tk.PhotoImage(file='icons/Maze_UnselectCell.png').subsample(4)
-Img_Debug_MouseTrace = tk.PhotoImage(file='icons/Debug_MouseTrace.png').subsample(4)
-Img_Debug_showBorder = tk.PhotoImage(file='icons/Debug_showBorder.png').subsample(4)
-Img_Debug_showGrid = tk.PhotoImage(file='icons/Debug_showGrid.png').subsample(4)
-Img_Debug_showPath = tk.PhotoImage(file='icons/Debug_showPath.png').subsample(4)
-Img_Debug_showSolution = tk.PhotoImage(file='icons/Debug_showSolution.png').subsample(4)
-Img_Debug_showVertex = tk.PhotoImage(file='icons/Debug_showVertex.png').subsample(4)
-Img_Point_Start = tk.PhotoImage(file='icons/Point_Start.png').subsample(4)
-Img_Point_End = tk.PhotoImage(file='icons/Point_End.png').subsample(4)
-Img_Point_IncreaseSize = tk.PhotoImage(file='icons/Point_IncreaseSize.png').subsample(4)
-Img_Point_DecreaseSize = tk.PhotoImage(file='icons/Point_DecreaseSize.png').subsample(4)
-Img_Import = tk.PhotoImage(file='icons/Import.png').subsample(4)
-Img_Export = tk.PhotoImage(file='icons/Export.png').subsample(4)
-Img_Paste_Pattern_Mouse = tk.PhotoImage(file='icons/Paste_Pattern_Mouse.png').subsample(4)
-Img_Paste_Pattern_Fast = tk.PhotoImage(file='icons/Paste_Pattern_Fast.png').subsample(4)
+Img_Mode_Maze = tk.PhotoImage(file=resource_path('icons/Mode_Maze.png')).subsample(4)
+Img_Mode_Point = tk.PhotoImage(file=resource_path('icons/Mode_Point.png')).subsample(4)
+Img_Maze_SelectAll = tk.PhotoImage(file=resource_path('icons/Maze_SelectAll.png')).subsample(4)
+Img_Maze_UnselectAll = tk.PhotoImage(file=resource_path('icons/Maze_UnselectAll.png')).subsample(4)
+Img_Maze_SelectCell = tk.PhotoImage(file=resource_path('icons/Maze_SelectCell.png')).subsample(4)
+Img_Maze_UnselectCell = tk.PhotoImage(file=resource_path('icons/Maze_UnselectCell.png')).subsample(4)
+Img_Debug_MouseTrace = tk.PhotoImage(file=resource_path('icons/Debug_MouseTrace.png')).subsample(4)
+Img_Debug_showBorder = tk.PhotoImage(file=resource_path('icons/Debug_showBorder.png')).subsample(4)
+Img_Debug_showGrid = tk.PhotoImage(file=resource_path('icons/Debug_showGrid.png')).subsample(4)
+Img_Debug_showPath = tk.PhotoImage(file=resource_path('icons/Debug_showPath.png')).subsample(4)
+Img_Debug_showSolution = tk.PhotoImage(file=resource_path('icons/Debug_showSolution.png')).subsample(4)
+Img_Debug_showVertex = tk.PhotoImage(file=resource_path('icons/Debug_showVertex.png')).subsample(4)
+Img_Point_Start = tk.PhotoImage(file=resource_path('icons/Point_Start.png')).subsample(4)
+Img_Point_End = tk.PhotoImage(file=resource_path('icons/Point_End.png')).subsample(4)
+Img_Point_IncreaseSize = tk.PhotoImage(file=resource_path('icons/Point_IncreaseSize.png')).subsample(4)
+Img_Point_DecreaseSize = tk.PhotoImage(file=resource_path('icons/Point_DecreaseSize.png')).subsample(4)
+Img_Import = tk.PhotoImage(file=resource_path('icons/Import.png')).subsample(4)
+Img_Export = tk.PhotoImage(file=resource_path('icons/Export.png')).subsample(4)
+Img_Paste_Pattern_Mouse = tk.PhotoImage(file=resource_path('icons/Paste_Pattern_Mouse.png')).subsample(4)
+Img_Paste_Pattern_Fast = tk.PhotoImage(file=resource_path('icons/Paste_Pattern_Fast.png')).subsample(4)
 
 
 
