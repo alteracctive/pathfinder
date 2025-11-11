@@ -66,13 +66,14 @@ try:
 except:
     pass  # Skip if not on Windows
 
-window.title('Pathseeker by Altah')
+window.title('Pathfinder by Altah')
 try:
     window.iconbitmap(resource_path("icons/icon.ico"))
 except:
     pass  # Skip if icon file not found
 
-window.resizable(width=False, height=False)  # lock size
+# CHANGED: Allow resizing instead of locking it
+# window.resizable(width=False, height=False)  # REMOVED THIS LINE
 window.state("zoomed")
 
 # Style
@@ -115,7 +116,9 @@ pointSize = 4
 numRow = int(mazeHeight / cellSize)
 numColumn = int(mazeWidth / cellSize)
 selectedCell = [[0] * (numColumn + 1) for i in range(numRow + 1)]
+cellRectangles = {}  # Dictionary to store canvas rectangle IDs for each cell
 mazeVertex = []
+deadVertex = []
 mazePath = []
 allPath = []
 penState = tk.StringVar(value='Maze')
@@ -129,15 +132,19 @@ showVertex = tk.IntVar(value=0)
 showPath = tk.IntVar(value=0)
 showBorder = tk.IntVar(value=0)
 showSolution = tk.IntVar(value=0)
-fastCalc = tk.IntVar(value=0)
+fastCalc = tk.IntVar(value=1)
 gridSize = tk.IntVar(value=100)
 lastMouseX, lastMouseY = 0, 0
+lastCellRow, lastCellColumn = -1, -1  # Track last painted cell
 startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
 mouseNum = 0
 lastPasteRow, lastPasteColumn = 0, 0
 archiveTimer_Solution = []
 archiveTimer_Path = []
 lastArchiveTimer_Path = 0
+isDragging = False  # Track if currently dragging
+needsRedraw = False  # Flag to indicate if redraw is needed
+redrawScheduled = False  # Flag to prevent multiple scheduled redraws
 
 # Load images (with error handling)
 def load_image(path, default_size=4):
@@ -231,21 +238,81 @@ def setMouseSecondary():
         MazeSecondary = mouseSecondary.get()
 
 
+def updateCellVisual(row, column):
+    """Update a single cell's visual appearance using itemconfig for performance"""
+    global cellRectangles, selectedCell
+    
+    xCell, yCell = column * cellSize, row * cellSize
+    cell_key = (row, column)
+    
+    # Determine the color based on selection state
+    color = Color_SelectedCells if selectedCell[row][column] == 1 else Color_NonSelectedCells
+    
+    # Use itemconfig to update existing rectangle, or create new one if it doesn't exist
+    if cell_key in cellRectangles:
+        maze.itemconfig(cellRectangles[cell_key], fill=color)
+    else:
+        rect_id = maze.create_rectangle(xCell, yCell, xCell + cellSize, yCell + cellSize, 
+                                        fill=color, outline='', tags='Cell')
+        cellRectangles[cell_key] = rect_id
+        maze.tag_lower('Cell')
+
+
+def bresenhamLine(x0, y0, x1, y1):
+    """Generate all cells along a line from (x0, y0) to (x1, y1) using Bresenham's algorithm"""
+    cells = []
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx - dy
+    
+    while True:
+        cells.append((y0, x0))  # Note: (row, column) format
+        
+        if x0 == x1 and y0 == y1:
+            break
+            
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x0 += sx
+        if e2 < dx:
+            err += dx
+            y0 += sy
+    
+    return cells
+
+
 def MassSelected(x):
     global selectedCell, numRow, numColumn, lastPasteRow, lastPasteColumn, startPointX, startPointY, endPointX, endPointY
+    global cellRectangles, lastCellRow, lastCellColumn
+    
     colorState = Color_NonSelectedCells
     if x == 1:
         colorState = Color_SelectedCells
     lastPasteRow, lastPasteColumn = 0, 0
+    lastCellRow, lastCellColumn = -1, -1
     selectedCell = [[x] * (numColumn + 1) for i in range(numRow + 1)]
+    
     for a in range(numRow):
         selectedCell[a][numColumn] = 0
     for a in range(numColumn + 1):
         selectedCell[numRow][a] = 0
     
+    # Clear the canvas and recreate all cells
+    maze.delete('all')
+    cellRectangles.clear()
+    
     if x == 1:
-        maze.delete('all')
-        maze.create_rectangle(0, 0, mazeWidth, mazeHeight, fill=colorState, outline='', tags='Cell')
+        # Batch create all selected cells at once
+        for row in range(numRow):
+            for column in range(numColumn):
+                xCell, yCell = column * cellSize, row * cellSize
+                rect_id = maze.create_rectangle(xCell, yCell, xCell + cellSize, yCell + cellSize, 
+                                              fill=colorState, outline='', tags='Cell')
+                cellRectangles[(row, column)] = rect_id
+        
         if startPointX != -1 and startPointY != -1:
             maze.create_oval(startPointX + pointSize, startPointY + pointSize, 
                            startPointX - pointSize, startPointY - pointSize, 
@@ -255,7 +322,6 @@ def MassSelected(x):
                            endPointX - pointSize, endPointY - pointSize, 
                            fill=Color_PointEnd, tags='End')
     else:
-        maze.delete('all')
         startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
     
     maze.tag_lower('Cell')
@@ -304,7 +370,7 @@ def changePointSize(diff=0):
     maze.delete('Point')
     if startPointX != -1 and startPointY != -1:
         maze.create_oval(startPointX + pointSize, startPointY + pointSize, 
-                        startPointX - pointSize, startPointY - pointSize, 
+                        startPointX - pointSize, startPointSize - pointSize, 
                         fill=Color_PointStart, tags=['Point', 'Start'])
     if endPointX != -1 and endPointY != -1:
         maze.create_oval(endPointX + pointSize, endPointY + pointSize, 
@@ -411,6 +477,7 @@ def PastePattern(reRow, reColumn):
                     if column + j >= numColumn:
                         break
                     selectedCell[row + i][column + j] = iarr[i][j]
+                    updateCellVisual(row + i, column + j)
             
             if row + len(iarr) < numRow and column + len(iarr[0]) < numColumn:
                 lastPasteRow = row + len(iarr)
@@ -438,12 +505,30 @@ repeatCopyButton = ttk.Spinbox(window, from_=1, to=100, textvariable=Var_repeatC
 repeatCopyButton.place(x=400, y=50)
 
 
+# Helper functions for grid dimension display
+def cellSizeToDimensions(size):
+    """Convert cell size to grid dimensions string"""
+    cols = int(mazeWidth / size)
+    rows = int(mazeHeight / size)
+    return f"{cols} x {rows}"
+
+
+def dimensionsToCellSize(dimensions_str):
+    """Convert dimensions string back to cell size"""
+    # Extract the width (columns) from the string
+    cols = int(dimensions_str.split(' x ')[0])
+    return int(mazeWidth / cols)
+
+
 # Grid size customization
-def resizeGrid(x):
+def resizeGrid(dimensions_str):
     global cellSize, numRow, numColumn, selectedCell, penState, mazeHeight, mazeWidth
     global lastPasteColumn, lastPasteRow, startPointX, startPointY, endPointX, endPointY
+    global cellRectangles, lastCellRow, lastCellColumn
     
-    if x != cellSize:
+    new_cellSize = dimensionsToCellSize(dimensions_str)
+    
+    if new_cellSize != cellSize:
         answer = tk.messagebox.askokcancel(title='Resize grid',
                                           message='By resizing the grid, you will clear everything in the grid')
     else:
@@ -451,10 +536,12 @@ def resizeGrid(x):
     
     if answer:
         lastPasteColumn, lastPasteRow = 0, 0
-        cellSize = x
+        lastCellRow, lastCellColumn = -1, -1
+        cellSize = new_cellSize
         numRow = int(mazeHeight / cellSize)
         numColumn = int(mazeWidth / cellSize)
         selectedCell = [[0] * (numColumn + 1) for i in range(numRow + 1)]
+        cellRectangles.clear()
         maze.delete('all')
         drawGrid()
         maze.tag_raise('outline')
@@ -462,12 +549,16 @@ def resizeGrid(x):
         startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
         changeMode()
     else:
-        varCellSize.set(cellSize)
+        varCellDimensions.set(cellSizeToDimensions(cellSize))
 
 
-varCellSize = tk.IntVar(value=50)
-cellSizeSelector = ttk.OptionMenu(window, varCellSize, cellSize, 1, 2, 3, 4, 5, 6, 9, 10, 12, 15, 
-                                  18, 20, 25, 30, 36, 45, 50, 60, command=resizeGrid, 
+# Available cell sizes (20 and above)
+availableCellSizes = [20, 25, 30, 36, 45, 50, 60]
+dimensionOptions = [cellSizeToDimensions(size) for size in availableCellSizes]
+
+varCellDimensions = tk.StringVar(value=cellSizeToDimensions(cellSize))
+cellSizeSelector = ttk.OptionMenu(window, varCellDimensions, cellSizeToDimensions(cellSize), 
+                                  *dimensionOptions, command=resizeGrid, 
                                   style='design1.TMenubutton')
 cellSizeSelector.place(x=1830, y=5)
 
@@ -494,8 +585,28 @@ def drawGrid():
         maze.create_line(0, mazeHeight - 1, mazeWidth, mazeHeight - 1, fill=Color_GridLine, width=2, tags='gridLine')
 
 
+def scheduleRedraw():
+    """Schedule a redraw after a short delay to batch updates during dragging"""
+    global redrawScheduled, needsRedraw
+    
+    if not redrawScheduled and needsRedraw:
+        redrawScheduled = True
+        window.after(50, performScheduledRedraw)  # 50ms delay for batching
+
+
+def performScheduledRedraw():
+    """Perform the scheduled redraw"""
+    global redrawScheduled, needsRedraw
+    
+    if needsRedraw:
+        drawLine()
+        needsRedraw = False
+    
+    redrawScheduled = False
+
+
 def drawLine(optimizeMode=0):
-    global mazeVertex, showPath, showVertex, showBorder, showSolution
+    global mazeVertex, deadVertex, showPath, showVertex, showBorder, showSolution
     
     # Show border
     if showBorder.get() == 1 and optimizeMode == 0:
@@ -508,11 +619,14 @@ def drawLine(optimizeMode=0):
     if optimizeMode == 0:
         maze.delete('line_Vertex')
         mazeVertex = []
+        deadVertex = []  # Reset dead vertices list
+        
         for row in range(0, numRow):
             for column in range(0, numColumn):
                 if selectedCell[row][column] == 1:
-                    # Outer Vertex
+                    # When FastCalc is OFF - do full vertex detection (outer + inner)
                     if fastCalc.get() == 0:
+                        # Outer Vertex - corners where maze meets empty space
                         if selectedCell[row - 1][column] == 0 and selectedCell[row][column - 1] == 0 and selectedCell[row - 1][column - 1] == 0:
                             mazeVertex.append([row, column])
                         if selectedCell[row - 1][column] == 0 and selectedCell[row][column + 1] == 0 and selectedCell[row - 1][column + 1] == 0:
@@ -521,7 +635,20 @@ def drawLine(optimizeMode=0):
                             mazeVertex.append([row + 1, column])
                         if selectedCell[row + 1][column] == 0 and selectedCell[row][column + 1] == 0 and selectedCell[row + 1][column + 1] == 0:
                             mazeVertex.append([row + 1, column + 1])
-                        # Inner Vertex
+                        
+                        # Inner Vertex - corners where corridors meet inside the maze
+                        if selectedCell[row - 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row - 1][column - 1] == 0:
+                            mazeVertex.append([row, column])
+                        if selectedCell[row - 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row - 1][column + 1] == 0:
+                            mazeVertex.append([row, column + 1])
+                        if selectedCell[row + 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row + 1][column - 1] == 0:
+                            mazeVertex.append([row + 1, column])
+                        if selectedCell[row + 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row + 1][column + 1] == 0:
+                            mazeVertex.append([row + 1, column + 1])
+                    
+                    # When FastCalc is ON - only detect inner vertices (faster)
+                    else:
+                        # Inner Vertex only - corners where corridors meet inside the maze
                         if selectedCell[row - 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row - 1][column - 1] == 0:
                             mazeVertex.append([row, column])
                         if selectedCell[row - 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row - 1][column + 1] == 0:
@@ -531,12 +658,37 @@ def drawLine(optimizeMode=0):
                         if selectedCell[row + 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row + 1][column + 1] == 0:
                             mazeVertex.append([row + 1, column + 1])
         
+        # Detect dead vertices (diagonal touches) - works for both FastCalc ON and OFF
+        for row in range(0, numRow + 1):
+            for column in range(0, numColumn + 1):
+                # Check if this corner is a dead vertex
+                # Dead vertex = only two diagonal cells are selected and touch at this corner
+                topLeft = selectedCell[row - 1][column - 1] if row > 0 and column > 0 else 0
+                topRight = selectedCell[row - 1][column] if row > 0 and column <= numColumn else 0
+                bottomLeft = selectedCell[row][column - 1] if row <= numRow and column > 0 else 0
+                bottomRight = selectedCell[row][column] if row <= numRow and column <= numColumn else 0
+                
+                # Dead vertex patterns: only two diagonal cells selected
+                if topLeft == 1 and bottomRight == 1 and topRight == 0 and bottomLeft == 0:
+                    deadVertex.append([row, column])
+                elif topRight == 1 and bottomLeft == 1 and topLeft == 0 and bottomRight == 0:
+                    deadVertex.append([row, column])
+        
+        # Draw vertices if showVertex is enabled
         if showVertex.get() == 1:
+            # Draw regular vertices in magenta/pink
             for i in range(len(mazeVertex)):
                 row, column = mazeVertex[i]
                 maze.create_oval(column * cellSize - 3, row * cellSize - 3, 
                                column * cellSize + 3, row * cellSize + 3,
                                fill=Color_Line_Vertex, width=0, tags='line_Vertex')
+            
+            # CHANGED: Draw dead vertices in dark purple instead of red
+            for i in range(len(deadVertex)):
+                row, column = deadVertex[i]
+                maze.create_oval(column * cellSize - 3, row * cellSize - 3, 
+                               column * cellSize + 3, row * cellSize + 3,
+                               fill='#4B0082', width=0, tags='line_Vertex')  # Dark purple/indigo
     
     # Show path
     if showPath.get() == 0:
@@ -557,6 +709,37 @@ def drawLine(optimizeMode=0):
     maze.tag_raise('line_Solution')
     maze.tag_raise('Start')
     maze.tag_raise('End')
+
+def crossesDeadVertex(x0, y0, x1, y1):
+    """Check if the path from (x0,y0) to (x1,y1) crosses any dead vertex"""
+    global deadVertex
+    
+    # Check each dead vertex
+    for vertex in deadVertex:
+        vRow, vCol = vertex
+        vX = vCol
+        vY = vRow
+        
+        # Check if the line passes through or very close to this dead vertex
+        # Use point-to-line distance formula
+        dx = x1 - x0
+        dy = y1 - y0
+        
+        if dx == 0 and dy == 0:
+            continue
+        
+        # Distance from point to line
+        t = max(0, min(1, ((vX - x0) * dx + (vY - y0) * dy) / (dx * dx + dy * dy)))
+        nearestX = x0 + t * dx
+        nearestY = y0 + t * dy
+        
+        distance = math.sqrt((vX - nearestX) ** 2 + (vY - nearestY) ** 2)
+        
+        # If distance is very small (within 0.01 units), path crosses dead vertex
+        if distance < 0.01:
+            return True
+    
+    return False
 
 
 def drawLine_Border():
@@ -605,9 +788,12 @@ def drawLine_Path(optimizeMode=0):
     Timer_Solution = time.perf_counter()
     pathLength = 0
     
+    # CHANGED: Always delete line_Path_Point when recalculating
+    # This ensures old point-to-vertex lines are removed when points move
+    maze.delete('line_Path_Point')
+    
     if optimizeMode == 0:
         maze.delete('line_Path')
-        maze.delete('line_Path_Point')
     
     global mazeVertex, mazePath, allPath, showPath, showSolution, graph
     global archiveTimer_Solution, archiveTimer_Path, lastArchiveTimer_Path
@@ -721,7 +907,6 @@ def drawLine_Path(optimizeMode=0):
                                           str(round(Timer_Solution * 1000, 2)) + ' ms' + '\n' +
                                           'Solution Length: ' + str(round(pathLength / cellSize, 2)) + ' cell')
 
-
 def dijsktra(graph, initial, end):
     """Dijkstra's algorithm for finding shortest path"""
     # Dictionary whose value is a tuple of (previous node, weight)
@@ -765,6 +950,10 @@ def dijsktra(graph, initial, end):
 
 def legitPath(x0, y0, x1, y1, floatMode=0):
     """Check if path between two points is valid"""
+    
+    # ADDED: Check if path crosses any dead vertex
+    if crossesDeadVertex(x0, y0, x1, y1):
+        return False
     # Initialize
     if (y0 > y1):
         y0, y1 = y1, y0
@@ -1017,73 +1206,79 @@ def legitPath(x0, y0, x1, y1, floatMode=0):
 def LeftMouseMove(event):
     x, y = maze.winfo_pointerx() - maze.winfo_rootx(), maze.winfo_pointery() - maze.winfo_rooty()
     global mouseNum, startPointX, startPointY, endPointX, endPointY, pointSize
-    
+
     if (mouseTrace.get() == 1) and (penState.get() == 'Maze'):
         global lastMouseX, lastMouseY
         maze.create_oval(x - 2, y - 2, x + 2, y + 2, fill='red', tags='debug')
         maze.create_line(lastMouseX, lastMouseY, x, y, fill='red', tags='debug', capstyle='round')
         lastMouseX, lastMouseY = x, y
-    
+
     if (x >= 0) and (y >= 0) and (x <= mazeWidth - 1) and (y <= mazeHeight - 1):
         if (penState.get() == 'Maze'):
             row = int(y / cellSize)
             column = int(x / cellSize)
             xCell, yCell = column * cellSize, row * cellSize
-            
             if selectedCell[row][column] == 0 and mouseSecondary.get() == mouseNum:
-                maze.create_rectangle(xCell, yCell, xCell + cellSize, yCell + cellSize, 
+                maze.create_rectangle(xCell, yCell, xCell + cellSize, yCell + cellSize,
                                     fill=Color_SelectedCells, outline='', tags='Cell')
                 selectedCell[row][column] = 1
             elif selectedCell[row][column] == 1 and mouseSecondary.get() != mouseNum:
-                maze.create_rectangle(xCell, yCell, xCell + cellSize, yCell + cellSize, 
+                maze.create_rectangle(xCell, yCell, xCell + cellSize, yCell + cellSize,
                                     fill=Color_NonSelectedCells, outline='', tags='Cell')
                 selectedCell[row][column] = 0
-            
             maze.tag_lower('Cell')
             drawLine()
-        
+
         elif (penState.get() == 'Point'):
             row = int(y / cellSize)
             column = int(x / cellSize)
-            
             if selectedCell[row][column] == 1:
                 if mouseSecondary.get() == mouseNum:
                     startPointX, startPointY = x, y
                     maze.delete('Start')
-                    maze.create_oval(x + pointSize, y + pointSize, x - pointSize, y - pointSize, 
+                    maze.create_oval(x + pointSize, y + pointSize, x - pointSize, y - pointSize,
                                    fill=Color_PointStart, tags=['Point', 'Start'])
                 else:
                     endPointX, endPointY = x, y
                     maze.delete('End')
-                    maze.create_oval(x + pointSize, y + pointSize, x - pointSize, y - pointSize, 
+                    maze.create_oval(x + pointSize, y + pointSize, x - pointSize, y - pointSize,
                                    fill=Color_PointEnd, tags=['Point', 'End'])
+                
+                # CHANGED: Refresh paths by redrawing with optimizeMode=1
+                # This will redraw only the point-to-vertex connections without recalculating vertices
                 drawLine(optimizeMode=1)
     else:
         lastMouseX, lastMouseY = x, y
 
 
 def LeftMouseUp(event):
-    maze.delete('Cell')
-    for x in range(0, mazeWidth, cellSize):
-        for y in range(0, mazeHeight, cellSize):
-            row = int(y / cellSize)
-            column = int(x / cellSize)
-            if selectedCell[row][column] == 1:
-                maze.create_rectangle(x, y, x + cellSize, y + cellSize, 
-                                    fill=Color_SelectedCells, outline='', tags='Cell')
+    global mouseNum, isDragging, lastCellRow, lastCellColumn, needsRedraw
     
-    global mouseNum
+    # Reset dragging state
+    isDragging = False
+    lastCellRow, lastCellColumn = -1, -1
+    
     mouseNum = 0 if event.num == 3 else 1
-    maze.tag_lower('Cell')
     maze.delete('debug')
+    
+    # Perform final redraw if needed
+    if needsRedraw:
+        drawLine()
+        needsRedraw = False
 
 
 def LeftMouseDown(event):
+    global isDragging, lastCellRow, lastCellColumn
+    
     if mouseTrace.get() == 1:
         global lastMouseX, lastMouseY, mouseNum
         lastMouseX, lastMouseY = maze.winfo_pointerx() - maze.winfo_rootx(), maze.winfo_pointery() - maze.winfo_rooty()
     
     mouseNum = 0 if event.num == 1 else 1
+    isDragging = True
+    
+    # Reset last cell tracking
+    lastCellRow, lastCellColumn = -1, -1
     
     if (penState.get() == 'Maze_Paste'):
         PastePattern(-1, -1)
@@ -1122,6 +1317,13 @@ window.bind("<ButtonRelease-3>", LeftMouseUp)
 window.bind("<Button-1>", LeftMouseDown)
 window.bind("<Button-3>", LeftMouseDown)
 
+# ADDED: Set minimum window size based on maze dimensions
+# Calculate minimum size: maze + toolbar + padding
+# Toolbar area: ~110px, Canvas frame padding: ~80px, Canvas itself: mazeWidth x mazeHeight
+min_width = mazeWidth + 100  # Extra padding for UI elements on sides
+min_height = mazeHeight + 200  # Toolbar (110) + canvas padding (80) + extra (10)
+window.minsize(min_width, min_height)
+
 # Run
-resizeGrid(cellSize)
+resizeGrid(cellSizeToDimensions(cellSize))
 window.mainloop()
