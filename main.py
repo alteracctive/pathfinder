@@ -1,6 +1,7 @@
 import tkinter as tk
 import time
 import math
+import random
 from tkinter import ttk
 from tkinter import messagebox
 from ctypes import windll  # fix blurry
@@ -89,10 +90,10 @@ PointSecondary = 0
 mouseTrace = tk.IntVar(value=0)
 showGrid = tk.IntVar(value=1)
 showVertex = tk.IntVar(value=0)
-showPath = tk.IntVar(value=0)  
+showPath = tk.IntVar(value=0) 
 showBorder = tk.IntVar(value=0)
 showSolution = tk.IntVar(value=0)
-fastCalc = tk.IntVar(value=1)  
+fastCalc = tk.IntVar(value=1) 
 lastMouseX, lastMouseY = 0, 0
 lastCellRow, lastCellColumn = -1, -1
 startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
@@ -138,6 +139,7 @@ def changeMode():
         Maze_UnselectAllButton.place_forget()
         Maze_FirstActionButton.place_forget()
         Maze_SecondaryActionButton.place_forget()
+        Maze_RandomizeButton.place_forget()
         Point_FirstActionButton.place(x=100, y=10)
         Point_SecondaryActionButton.place(x=150, y=10)
         Point_IncreaseSizeButton.place(x=250, y=10)
@@ -148,6 +150,7 @@ def changeMode():
         Maze_SecondaryActionButton.place(x=150, y=10)
         Maze_SelectAllButton.place(x=250, y=10)
         Maze_UnselectAllButton.place(x=300, y=10)
+        Maze_RandomizeButton.place(x=350, y=10)
         Point_FirstActionButton.place_forget()
         Point_SecondaryActionButton.place_forget()
         Point_IncreaseSizeButton.place_forget()
@@ -159,11 +162,11 @@ def changeMode():
 FrameMode = tk.Frame(master=window, bg='white', bd=1, relief='sunken', height=100, width=50)
 FrameMode.place(x=5, y=5)
 
-FrameTool = tk.Frame(master=window, bg='white', bd=1, relief='sunken', height=100, width=350)
+FrameTool = tk.Frame(master=window, bg='white', bd=1, relief='sunken', height=100, width=400)
 FrameTool.place(x=95, y=5)
 
 FrameDebug = tk.Frame(master=window, bg='white', bd=1, relief='sunken', height=100, width=150)
-FrameDebug.place(x=495, y=5)
+FrameDebug.place(x=545, y=5)
 
 # Mode buttons
 MazeModeButton = ttk.Radiobutton(master=window, image=Img_Mode_Maze, command=lambda: changeMode(),
@@ -270,12 +273,143 @@ def MassSelected(x):
     drawLine(optimizeMode=1)
 
 
+def generateRandomMaze():
+    """Generate a random maze using Prim's algorithm with 1-2 cell thick walls"""
+    global selectedCell, numRow, numColumn, cellRectangles, lastCellRow, lastCellColumn
+    global startPointX, startPointY, endPointX, endPointY
+    
+    # Clear everything first
+    lastCellRow, lastCellColumn = -1, -1
+    startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
+    selectedCell = [[0] * (numColumn + 1) for i in range(numRow + 1)]
+    
+    for a in range(numRow):
+        selectedCell[a][numColumn] = 0
+    for a in range(numColumn + 1):
+        selectedCell[numRow][a] = 0
+    
+    maze.delete('all')
+    cellRectangles.clear()
+    
+    # Prim's algorithm for maze generation
+    # Spacing: 2 = 1 cell walls, 3 = 1-2 cell walls
+    # Prefer spacing of 2 for thinner walls (80% of time)
+    spacing = 2 if random.random() < 0.8 else 3
+    
+    # Start from random cell that aligns with spacing
+    # Ensure we can reach edges by starting from 0 or 1
+    start_offset_row = random.randint(0, min(1, numRow - 1))
+    start_offset_col = random.randint(0, min(1, numColumn - 1))
+    
+    # Pick a random position in the spacing grid
+    max_grid_row = (numRow - 1 - start_offset_row) // spacing
+    max_grid_col = (numColumn - 1 - start_offset_col) // spacing
+    
+    if max_grid_row < 0:
+        max_grid_row = 0
+    if max_grid_col < 0:
+        max_grid_col = 0
+    
+    grid_row = random.randint(0, max_grid_row)
+    grid_col = random.randint(0, max_grid_col)
+    
+    start_row = start_offset_row + grid_row * spacing
+    start_col = start_offset_col + grid_col * spacing
+    
+    # Ensure within bounds
+    start_row = min(start_row, numRow - 1)
+    start_col = min(start_col, numColumn - 1)
+    
+    # Mark starting cell as passage (selected)
+    selectedCell[start_row][start_col] = 1
+    
+    # Set of cells that are part of the maze (passages)
+    in_maze = {(start_row, start_col)}
+    
+    # Frontier set: cells that could be added next
+    frontier = []
+    
+    # Add initial frontier cells
+    for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
+        new_row = start_row + dr
+        new_col = start_col + dc
+        if 0 <= new_row < numRow and 0 <= new_col < numColumn:
+            frontier.append((new_row, new_col))
+    
+    # Main Prim's algorithm loop
+    while frontier:
+        # Pick random frontier cell
+        idx = random.randint(0, len(frontier) - 1)
+        current = frontier.pop(idx)
+        curr_row, curr_col = current
+        
+        # Skip if already in maze
+        if current in in_maze:
+            continue
+        
+        # Find neighbors that are already in maze (at spacing distance)
+        maze_neighbors = []
+        for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
+            neighbor_row = curr_row + dr
+            neighbor_col = curr_col + dc
+            if (neighbor_row, neighbor_col) in in_maze:
+                maze_neighbors.append((neighbor_row, neighbor_col))
+        
+        # If there are maze neighbors, connect to one randomly
+        if maze_neighbors:
+            neighbor = random.choice(maze_neighbors)
+            neighbor_row, neighbor_col = neighbor
+            
+            # Mark current cell as passage
+            selectedCell[curr_row][curr_col] = 1
+            in_maze.add((curr_row, curr_col))
+            
+            # Connect current to neighbor by filling cells in between
+            if curr_row == neighbor_row:  # Horizontal connection
+                min_col = min(curr_col, neighbor_col)
+                max_col = max(curr_col, neighbor_col)
+                for col in range(min_col, max_col + 1):
+                    selectedCell[curr_row][col] = 1
+            else:  # Vertical connection
+                min_row = min(curr_row, neighbor_row)
+                max_row = max(curr_row, neighbor_row)
+                for row in range(min_row, max_row + 1):
+                    selectedCell[row][curr_col] = 1
+            
+            # Add new frontier cells (at spacing distance from current)
+            for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
+                new_row = curr_row + dr
+                new_col = curr_col + dc
+                if 0 <= new_row < numRow and 0 <= new_col < numColumn:
+                    if (new_row, new_col) not in in_maze:
+                        # Check if not already in frontier
+                        if (new_row, new_col) not in frontier:
+                            frontier.append((new_row, new_col))
+    
+    # Redraw all cells
+    for row in range(numRow):
+        for column in range(numColumn):
+            if selectedCell[row][column] == 1:
+                xCell, yCell = column * cellSize, row * cellSize
+                rect_id = maze.create_rectangle(xCell, yCell, xCell + cellSize, yCell + cellSize, 
+                                              fill=Color_SelectedCells, outline='', tags='Cell')
+                cellRectangles[(row, column)] = rect_id
+    
+    maze.tag_lower('Cell')
+    drawGrid()
+    drawLine()
+    drawLine(optimizeMode=1)
+
+
 # Controller board
 Maze_SelectAllButton = ttk.Button(master=window, image=Img_Maze_SelectAll, 
                                    command=lambda: MassSelected(1), style='design1.Toolbutton')
 
 Maze_UnselectAllButton = ttk.Button(master=window, image=Img_Maze_UnselectAll, 
                                      command=lambda: MassSelected(0), style='design1.Toolbutton')
+
+Maze_RandomizeButton = ttk.Button(master=window, text='Random', 
+                                   command=lambda: generateRandomMaze(), style='design1.Toolbutton')
 
 Maze_FirstActionButton = ttk.Radiobutton(master=window, image=Img_Maze_SelectCell, 
                                           command=(lambda: setMouseSecondary()),
@@ -322,54 +456,54 @@ Point_DecreaseSizeButton = ttk.Button(master=window, image=Img_Point_DecreaseSiz
 Debug_RenderGridButton = ttk.Checkbutton(master=window, image=Img_Debug_showGrid, 
                                           style='design1.Toolbutton', command=lambda: drawGrid(),
                                           variable=showGrid, onvalue=1, offvalue=0)
-Debug_RenderGridButton.place(x=500, y=10)
+Debug_RenderGridButton.place(x=550, y=10)
 
 Debug_MouseTracerButton = ttk.Checkbutton(master=window, image=Img_Debug_MouseTrace, 
                                            style='design1.Toolbutton', variable=mouseTrace, 
                                            onvalue=1, offvalue=0)
-Debug_MouseTracerButton.place(x=550, y=10)
+Debug_MouseTracerButton.place(x=600, y=10)
 
 Debug_BorderVertexButton = ttk.Checkbutton(master=window, image=Img_Debug_showVertex, 
                                             style='design1.Toolbutton', command=lambda: drawLine(),
                                             variable=showVertex, onvalue=1, offvalue=0)
-Debug_BorderVertexButton.place(x=600, y=10)
+Debug_BorderVertexButton.place(x=650, y=10)
 
 Debug_BorderLineButton = ttk.Checkbutton(master=window, image=Img_Debug_showBorder, 
                                           style='design1.Toolbutton', command=lambda: drawLine(),
                                           variable=showBorder, onvalue=1, offvalue=0)
-Debug_BorderLineButton.place(x=500, y=60)
+Debug_BorderLineButton.place(x=550, y=60)
 
 Debug_BorderPathButton = ttk.Checkbutton(master=window, image=Img_Debug_showPath, 
                                           style='design1.Toolbutton', command=lambda: drawLine(),
                                           variable=showPath, onvalue=1, offvalue=0)
-Debug_BorderPathButton.place(x=550, y=60)
+Debug_BorderPathButton.place(x=600, y=60)
 
 Debug_SolutionButton = ttk.Checkbutton(master=window, image=Img_Debug_showSolution, 
                                         style='design1.Toolbutton', 
                                         command=lambda: [drawLine(), drawLine(optimizeMode=1)],
                                         variable=showSolution, onvalue=1, offvalue=0)
-Debug_SolutionButton.place(x=600, y=60)
+Debug_SolutionButton.place(x=650, y=60)
 
 Debug_FastCalcButton = ttk.Checkbutton(master=window, text='FastCalc', 
                                         style='design1.Toolbutton', command=lambda: drawLine(),
                                         variable=fastCalc, onvalue=1, offvalue=0)
-Debug_FastCalcButton.place(x=650, y=60)
+Debug_FastCalcButton.place(x=700, y=60)
 
 # Statistics
 numberVertex = ttk.Label(window, text='Number of vertices: ' + str(len(mazeVertex)))
-numberVertex.place(x=800, y=10)
+numberVertex.place(x=850, y=10)
 
 numberEdge = ttk.Label(window, text='')
-numberEdge.place(x=800, y=30)
+numberEdge.place(x=850, y=30)
 
 numberPath = ttk.Label(window, text='')
-numberPath.place(x=800, y=50)
+numberPath.place(x=850, y=50)
 
 timerProcessing_Path = ttk.Label(window, text='')
-timerProcessing_Path.place(x=1000, y=10)
+timerProcessing_Path.place(x=1050, y=10)
 
 timerProcessing_Solution = ttk.Label(window, text='')
-timerProcessing_Solution.place(x=1000, y=30)
+timerProcessing_Solution.place(x=1050, y=30)
 
 
 # Helper functions for grid dimension display
