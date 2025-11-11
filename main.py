@@ -274,7 +274,7 @@ def MassSelected(x):
 
 
 def generateRandomMaze():
-    """Generate a random maze using Prim's algorithm with 1-2 cell thick walls"""
+    """Generate a random maze using Prim's algorithm with 1-cell thick walls and loops"""
     global selectedCell, numRow, numColumn, cellRectangles, lastCellRow, lastCellColumn
     global startPointX, startPointY, endPointX, endPointY
     
@@ -292,33 +292,27 @@ def generateRandomMaze():
     cellRectangles.clear()
     
     # Prim's algorithm for maze generation
-    # Spacing: 2 = 1 cell walls, 3 = 1-2 cell walls
-    # Prefer spacing of 2 for thinner walls (80% of time)
-    spacing = 2 if random.random() < 0.8 else 3
+    # Use spacing of 2 to create 1-cell thick walls
+    spacing = 2
     
-    # Start from random cell that aligns with spacing
-    # Ensure we can reach edges by starting from 0 or 1
-    start_offset_row = random.randint(0, min(1, numRow - 1))
-    start_offset_col = random.randint(0, min(1, numColumn - 1))
+    # Calculate effective grid size (handle even/odd dimensions)
+    # For even dimensions, we need to start at 1 instead of 0
+    start_offset_row = 1 if numRow % 2 == 0 else 0
+    start_offset_col = 1 if numColumn % 2 == 0 else 0
     
-    # Pick a random position in the spacing grid
-    max_grid_row = (numRow - 1 - start_offset_row) // spacing
-    max_grid_col = (numColumn - 1 - start_offset_col) // spacing
+    # Calculate max positions
+    max_row = numRow - 1 if numRow % 2 == 1 else numRow - 2
+    max_col = numColumn - 1 if numColumn % 2 == 1 else numColumn - 2
     
-    if max_grid_row < 0:
-        max_grid_row = 0
-    if max_grid_col < 0:
-        max_grid_col = 0
+    # Start with a random cell on the appropriate grid
+    possible_rows = list(range(start_offset_row, numRow, spacing))
+    possible_cols = list(range(start_offset_col, numColumn, spacing))
     
-    grid_row = random.randint(0, max_grid_row)
-    grid_col = random.randint(0, max_grid_col)
+    if not possible_rows or not possible_cols:
+        return  # Grid too small
     
-    start_row = start_offset_row + grid_row * spacing
-    start_col = start_offset_col + grid_col * spacing
-    
-    # Ensure within bounds
-    start_row = min(start_row, numRow - 1)
-    start_col = min(start_col, numColumn - 1)
+    start_row = random.choice(possible_rows)
+    start_col = random.choice(possible_cols)
     
     # Mark starting cell as passage (selected)
     selectedCell[start_row][start_col] = 1
@@ -326,65 +320,75 @@ def generateRandomMaze():
     # Set of cells that are part of the maze (passages)
     in_maze = {(start_row, start_col)}
     
-    # Frontier set: cells that could be added next
-    frontier = []
+    # Wall list: walls between passages
+    walls = []
+    removed_walls = []  # Track removed walls for adding loops
     
-    # Add initial frontier cells
+    # Add walls around starting cell
     for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
+        wall_row = start_row + dr // 2
+        wall_col = start_col + dc // 2
         new_row = start_row + dr
         new_col = start_col + dc
+        
         if 0 <= new_row < numRow and 0 <= new_col < numColumn:
-            frontier.append((new_row, new_col))
+            walls.append((wall_row, wall_col, new_row, new_col))
     
     # Main Prim's algorithm loop
-    while frontier:
-        # Pick random frontier cell
-        idx = random.randint(0, len(frontier) - 1)
-        current = frontier.pop(idx)
-        curr_row, curr_col = current
+    while walls:
+        # Pick random wall
+        wall_row, wall_col, cell_row, cell_col = random.choice(walls)
+        walls.remove((wall_row, wall_col, cell_row, cell_col))
         
-        # Skip if already in maze
-        if current in in_maze:
-            continue
-        
-        # Find neighbors that are already in maze (at spacing distance)
-        maze_neighbors = []
-        for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
-            neighbor_row = curr_row + dr
-            neighbor_col = curr_col + dc
-            if (neighbor_row, neighbor_col) in in_maze:
-                maze_neighbors.append((neighbor_row, neighbor_col))
-        
-        # If there are maze neighbors, connect to one randomly
-        if maze_neighbors:
-            neighbor = random.choice(maze_neighbors)
-            neighbor_row, neighbor_col = neighbor
+        # If the cell on the other side isn't in the maze yet
+        if (cell_row, cell_col) not in in_maze:
+            # Make the wall a passage
+            selectedCell[wall_row][wall_col] = 1
             
-            # Mark current cell as passage
-            selectedCell[curr_row][curr_col] = 1
-            in_maze.add((curr_row, curr_col))
+            # Make the cell a passage
+            selectedCell[cell_row][cell_col] = 1
+            in_maze.add((cell_row, cell_col))
             
-            # Connect current to neighbor by filling cells in between
-            if curr_row == neighbor_row:  # Horizontal connection
-                min_col = min(curr_col, neighbor_col)
-                max_col = max(curr_col, neighbor_col)
-                for col in range(min_col, max_col + 1):
-                    selectedCell[curr_row][col] = 1
-            else:  # Vertical connection
-                min_row = min(curr_row, neighbor_row)
-                max_row = max(curr_row, neighbor_row)
-                for row in range(min_row, max_row + 1):
-                    selectedCell[row][curr_col] = 1
-            
-            # Add new frontier cells (at spacing distance from current)
+            # Add neighboring walls of the new cell
             for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
-                new_row = curr_row + dr
-                new_col = curr_col + dc
-                if 0 <= new_row < numRow and 0 <= new_col < numColumn:
-                    if (new_row, new_col) not in in_maze:
-                        # Check if not already in frontier
-                        if (new_row, new_col) not in frontier:
-                            frontier.append((new_row, new_col))
+                new_wall_row = cell_row + dr // 2
+                new_wall_col = cell_col + dc // 2
+                new_cell_row = cell_row + dr
+                new_cell_col = cell_col + dc
+                
+                if 0 <= new_cell_row < numRow and 0 <= new_cell_col < numColumn:
+                    if (new_cell_row, new_cell_col) not in in_maze:
+                        wall_tuple = (new_wall_row, new_wall_col, new_cell_row, new_cell_col)
+                        if wall_tuple not in walls:
+                            walls.append(wall_tuple)
+        else:
+            # Both sides are in maze - save as potential loop location
+            removed_walls.append((wall_row, wall_col))
+    
+    # Add loops: randomly remove some walls between existing passages
+    # 10-15% chance to create a loop for each removed wall
+    loop_chance = 0.12
+    for wall_row, wall_col in removed_walls:
+        if random.random() < loop_chance:
+            # Check if wall is between two passages
+            is_horizontal = False
+            is_vertical = False
+            
+            # Check horizontal
+            if (0 <= wall_col - 1 < numColumn and 0 <= wall_col + 1 < numColumn and
+                selectedCell[wall_row][wall_col - 1] == 1 and 
+                selectedCell[wall_row][wall_col + 1] == 1):
+                is_horizontal = True
+            
+            # Check vertical
+            if (0 <= wall_row - 1 < numRow and 0 <= wall_row + 1 < numRow and
+                selectedCell[wall_row - 1][wall_col] == 1 and 
+                selectedCell[wall_row + 1][wall_col] == 1):
+                is_vertical = True
+            
+            # Remove the wall if it's between passages
+            if is_horizontal or is_vertical:
+                selectedCell[wall_row][wall_col] = 1
     
     # Redraw all cells
     for row in range(numRow):
@@ -399,6 +403,7 @@ def generateRandomMaze():
     drawGrid()
     drawLine()
     drawLine(optimizeMode=1)
+
 
 
 # Controller board
