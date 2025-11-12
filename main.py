@@ -37,7 +37,7 @@ try:
 except:
     pass
 
-window.title('Pathseeker by Altah')
+window.title('Pathfinder by Altah')
 try:
     window.iconbitmap(resource_path("icons/icon.ico"))
 except:
