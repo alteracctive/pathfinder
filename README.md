@@ -159,6 +159,8 @@ Real-time information display:
 * **Dead Vertex Detection:** Prevents invalid pathfinding through diagonal-only connections
 * **Real-time Path Updates:** Paths automatically recalculate when moving start/end points
 * **Performance Optimized:** FastCalc mode reduces vertex detection overhead by 50%+
+* **Multi Threading:** Use multi threading to improve calculation performance (Tkinter is not thread-safe)
+
 
 
 ## 🧮 Algorithm Details

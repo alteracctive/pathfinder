@@ -8,6 +8,8 @@ from ctypes import windll  # fix blurry
 from collections import defaultdict
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 def resource_path(relative_path):
     # Get absolute path to resource, works for dev and for PyInstaller
@@ -35,7 +37,7 @@ try:
 except:
     pass
 
-window.title('Pathfinder by Altah')
+window.title('Pathseeker by Altah')
 try:
     window.iconbitmap(resource_path("icons/icon.ico"))
 except:
@@ -69,6 +71,9 @@ style.map('design1.TMenubutton',
 
 # Global variables
 graph = Graph()
+
+# Thread pool for parallel operations
+executor = ThreadPoolExecutor(max_workers=4)
 
 # Customization
 mazeWidth = 1800
@@ -148,10 +153,10 @@ Img_Point_DecreaseSize = load_image('icons/Point_DecreaseSize.png')
 # TOOLBAR SECTION
 # ====================
 
-# Main toolbar frame - increased height for titles
+# Main toolbar frame
 ToolbarFrame = tk.Frame(master=window, bg='lightgray', relief='raised', bd=2, height=160)
 ToolbarFrame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
-ToolbarFrame.grid_propagate(False)  # Prevent shrinking
+ToolbarFrame.grid_propagate(False)
 
 # Configure toolbar grid
 for i in range(25):
@@ -162,7 +167,6 @@ for i in range(25):
 def changeMode():
     global penState
     if penState.get() == 'Point':
-        # Hide Maze buttons and titles
         Maze_SelectAllButton.grid_remove()
         Maze_UnselectAllButton.grid_remove()
         Maze_FirstActionButton.grid_remove()
@@ -173,7 +177,6 @@ def changeMode():
         Maze_SelectLabel.grid_remove()
         Maze_UnselectLabel.grid_remove()
         Maze_RandomLabel.grid_remove()
-        # Show Point buttons and titles
         Point_FirstActionButton.grid()
         Point_SecondaryActionButton.grid()
         Point_IncreaseSizeButton.grid()
@@ -184,7 +187,6 @@ def changeMode():
         Point_DecreaseLabel.grid()
         mouseSecondary.set(PointSecondary)
     elif penState.get() == 'Maze':
-        # Show Maze buttons and titles
         Maze_FirstActionButton.grid()
         Maze_SecondaryActionButton.grid()
         Maze_SelectAllButton.grid()
@@ -195,7 +197,6 @@ def changeMode():
         Maze_SelectLabel.grid()
         Maze_UnselectLabel.grid()
         Maze_RandomLabel.grid()
-        # Hide Point buttons and titles
         Point_FirstActionButton.grid_remove()
         Point_SecondaryActionButton.grid_remove()
         Point_IncreaseSizeButton.grid_remove()
@@ -211,7 +212,6 @@ def changeMode():
 ttk.Label(ToolbarFrame, text="Mode:", font=('Calibri', 12, 'bold'), background='lightgray').grid(
     row=0, column=0, padx=5, pady=2, sticky='w')
 
-# Mode buttons - VERTICAL LAYOUT
 MazeModeButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Mode_Maze, command=lambda: changeMode(),
                                   style='design1.Toolbutton', variable=penState, value='Maze')
 MazeModeButton.grid(row=1, column=0, padx=5, pady=(2,0))
@@ -226,7 +226,6 @@ PointModeButton.grid(row=3, column=0, padx=5, pady=(2,0))
 ttk.Label(ToolbarFrame, text="Point", font=('Calibri', 9), background='lightgray').grid(
     row=4, column=0, pady=(0,2))
 
-# Separator
 ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=1, rowspan=5, sticky='ns', padx=10)
 
 
@@ -243,7 +242,6 @@ def setMouseSecondary():
         MazeSecondary = mouseSecondary.get()
 
 
-# Maze tools - ROW 1
 Maze_FirstActionButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Maze_SelectCell, 
                                           command=(lambda: setMouseSecondary()),
                                           style='design1.Toolbutton', variable=mouseSecondary, value=0)
@@ -281,7 +279,6 @@ Maze_RandomizeButton.grid(row=1, column=6, padx=3, pady=(2,0))
 Maze_RandomLabel = ttk.Label(ToolbarFrame, text="Generate", font=('Calibri', 9), background='lightgray')
 Maze_RandomLabel.grid(row=2, column=6, pady=(0,2))
 
-# Point tools
 Point_FirstActionButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Point_Start, 
                                            command=(lambda: setMouseSecondary()),
                                            style='design1.Toolbutton', variable=mouseSecondary, value=0)
@@ -331,7 +328,6 @@ Point_DecreaseSizeButton.grid(row=1, column=5, padx=3, pady=(2,0))
 Point_DecreaseLabel = ttk.Label(ToolbarFrame, text="Smaller", font=('Calibri', 9), background='lightgray')
 Point_DecreaseLabel.grid(row=2, column=5, pady=(0,2))
 
-# Separator
 ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=7, rowspan=5, sticky='ns', padx=10)
 
 
@@ -396,7 +392,6 @@ Debug_FastCalcButton.grid(row=3, column=11, padx=3, pady=(2,0))
 ttk.Label(ToolbarFrame, text="Quick", font=('Calibri', 9), background='lightgray').grid(
     row=4, column=11, pady=(0,2))
 
-# Separator
 ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=12, rowspan=5, sticky='ns', padx=10)
 
 
@@ -419,7 +414,6 @@ timerProcessing_Path.grid(row=1, column=14, padx=5, pady=2, sticky='w')
 timerProcessing_Solution = ttk.Label(ToolbarFrame, text='', font=('Calibri', 9), background='lightgray')
 timerProcessing_Solution.grid(row=2, column=14, rowspan=2, padx=5, pady=2, sticky='w')
 
-# Separator
 ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=15, rowspan=5, sticky='ns', padx=10)
 
 
@@ -428,7 +422,6 @@ ttk.Label(ToolbarFrame, text="Grid:", font=('Calibri', 12, 'bold'), background='
     row=0, column=16, padx=5, pady=2, sticky='w')
 
 
-# Helper functions for grid dimension display
 def cellSizeToDimensions(size):
     """Convert cell size to grid dimensions string"""
     cols = int(mazeWidth / size)
@@ -442,7 +435,6 @@ def dimensionsToCellSize(dimensions_str):
     return int(mazeWidth / cols)
 
 
-# Grid size customization
 def resizeGrid(dimensions_str):
     global cellSize, numRow, numColumn, selectedCell, penState, mazeHeight, mazeWidth
     global startPointX, startPointY, endPointX, endPointY
@@ -473,7 +465,6 @@ def resizeGrid(dimensions_str):
         varCellDimensions.set(cellSizeToDimensions(cellSize))
 
 
-# Available cell sizes (20 and above)
 availableCellSizes = [20, 25, 30, 36, 45, 50, 60]
 dimensionOptions = [cellSizeToDimensions(size) for size in availableCellSizes]
 
@@ -491,15 +482,12 @@ ttk.Label(ToolbarFrame, text="Dimensions", font=('Calibri', 9), background='ligh
 # CANVAS SECTION
 # ====================
 
-# Canvas frame
 CanvasFrame = tk.Frame(master=window, bg=Color_MazeBackground)
 CanvasFrame.grid(row=1, column=0, sticky='nsew', padx=20, pady=(20, 10))
 
-# Configure grid for canvas frame
 CanvasFrame.grid_rowconfigure(0, weight=1)
 CanvasFrame.grid_columnconfigure(0, weight=1)
 
-# Canvas
 maze = tk.Canvas(master=CanvasFrame, height=mazeHeight, width=mazeWidth, bg=Color_NonSelectedCells, 
                  border=0, borderwidth=0, highlightbackground="black", highlightthickness=2)
 maze.grid(row=0, column=0)
@@ -597,7 +585,7 @@ def MassSelected(x):
 
 
 def generateRandomMaze():
-    """Generate a random maze using Prim's algorithm with 1-cell thick walls and loops"""
+    """Generate a random maze using Prim's algorithm"""
     global selectedCell, numRow, numColumn, cellRectangles, lastCellRow, lastCellColumn
     global startPointX, startPointY, endPointX, endPointY
     
@@ -614,34 +602,27 @@ def generateRandomMaze():
     maze.delete('all')
     cellRectangles.clear()
     
-    # Prim's algorithm for maze generation
     spacing = 2
     
-    # Calculate effective grid size (handle even/odd dimensions)
     start_offset_row = 1 if numRow % 2 == 0 else 0
     start_offset_col = 1 if numColumn % 2 == 0 else 0
     
-    # Start with a random cell on the appropriate grid
     possible_rows = list(range(start_offset_row, numRow, spacing))
     possible_cols = list(range(start_offset_col, numColumn, spacing))
     
     if not possible_rows or not possible_cols:
-        return  # Grid too small
+        return
     
     start_row = random.choice(possible_rows)
     start_col = random.choice(possible_cols)
     
-    # Mark starting cell as passage (selected)
     selectedCell[start_row][start_col] = 1
     
-    # Set of cells that are part of the maze (passages)
     in_maze = {(start_row, start_col)}
     
-    # Wall list: walls between passages
     walls = []
-    removed_walls = []  # Track removed walls for adding loops
+    removed_walls = []
     
-    # Add walls around starting cell
     for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
         wall_row = start_row + dr // 2
         wall_col = start_col + dc // 2
@@ -651,22 +632,15 @@ def generateRandomMaze():
         if 0 <= new_row < numRow and 0 <= new_col < numColumn:
             walls.append((wall_row, wall_col, new_row, new_col))
     
-    # Main Prim's algorithm loop
     while walls:
-        # Pick random wall
         wall_row, wall_col, cell_row, cell_col = random.choice(walls)
         walls.remove((wall_row, wall_col, cell_row, cell_col))
         
-        # If the cell on the other side isn't in the maze yet
         if (cell_row, cell_col) not in in_maze:
-            # Make the wall a passage
             selectedCell[wall_row][wall_col] = 1
-            
-            # Make the cell a passage
             selectedCell[cell_row][cell_col] = 1
             in_maze.add((cell_row, cell_col))
             
-            # Add neighboring walls of the new cell
             for dr, dc in [(0, spacing), (0, -spacing), (spacing, 0), (-spacing, 0)]:
                 new_wall_row = cell_row + dr // 2
                 new_wall_col = cell_col + dc // 2
@@ -679,30 +653,24 @@ def generateRandomMaze():
                         if wall_tuple not in walls:
                             walls.append(wall_tuple)
         else:
-            # Both sides are in maze - save as potential loop location
             removed_walls.append((wall_row, wall_col))
     
-    # Add loops: randomly remove some walls between existing passages
     loop_chance = 0.12
     for wall_row, wall_col in removed_walls:
         if random.random() < loop_chance:
-            # Check if wall is between two passages
             is_horizontal = False
             is_vertical = False
             
-            # Check horizontal
             if (0 <= wall_col - 1 < numColumn and 0 <= wall_col + 1 < numColumn and
                 selectedCell[wall_row][wall_col - 1] == 1 and 
                 selectedCell[wall_row][wall_col + 1] == 1):
                 is_horizontal = True
             
-            # Check vertical
             if (0 <= wall_row - 1 < numRow and 0 <= wall_row + 1 < numRow and
                 selectedCell[wall_row - 1][wall_col] == 1 and 
                 selectedCell[wall_row + 1][wall_col] == 1):
                 is_vertical = True
             
-            # Remove the wall if it's between passages
             if is_horizontal or is_vertical:
                 selectedCell[wall_row][wall_col] = 1
     
@@ -755,6 +723,62 @@ def performScheduledRedraw():
     redrawScheduled = False
 
 
+# Parallel vertex detection helper
+def detect_vertices_chunk(start_row, end_row, fast_calc_mode):
+    """Detect vertices in a chunk of rows - runs in thread"""
+    local_vertices = []
+    local_dead = []
+    
+    for row in range(start_row, end_row):
+        for column in range(0, numColumn):
+            if selectedCell[row][column] == 1:
+                if fast_calc_mode == 0:
+                    # Outer Vertex
+                    if selectedCell[row - 1][column] == 0 and selectedCell[row][column - 1] == 0 and selectedCell[row - 1][column - 1] == 0:
+                        local_vertices.append([row, column])
+                    if selectedCell[row - 1][column] == 0 and selectedCell[row][column + 1] == 0 and selectedCell[row - 1][column + 1] == 0:
+                        local_vertices.append([row, column + 1])
+                    if selectedCell[row + 1][column] == 0 and selectedCell[row][column - 1] == 0 and selectedCell[row + 1][column - 1] == 0:
+                        local_vertices.append([row + 1, column])
+                    if selectedCell[row + 1][column] == 0 and selectedCell[row][column + 1] == 0 and selectedCell[row + 1][column + 1] == 0:
+                        local_vertices.append([row + 1, column + 1])
+                    
+                    # Inner Vertex
+                    if selectedCell[row - 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row - 1][column - 1] == 0:
+                        local_vertices.append([row, column])
+                    if selectedCell[row - 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row - 1][column + 1] == 0:
+                        local_vertices.append([row, column + 1])
+                    if selectedCell[row + 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row + 1][column - 1] == 0:
+                        local_vertices.append([row + 1, column])
+                    if selectedCell[row + 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row + 1][column + 1] == 0:
+                        local_vertices.append([row + 1, column + 1])
+                else:
+                    # Inner Vertex only
+                    if selectedCell[row - 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row - 1][column - 1] == 0:
+                        local_vertices.append([row, column])
+                    if selectedCell[row - 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row - 1][column + 1] == 0:
+                        local_vertices.append([row, column + 1])
+                    if selectedCell[row + 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row + 1][column - 1] == 0:
+                        local_vertices.append([row + 1, column])
+                    if selectedCell[row + 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row + 1][column + 1] == 0:
+                        local_vertices.append([row + 1, column + 1])
+    
+    # Detect dead vertices in this chunk
+    for row in range(start_row, min(end_row + 1, numRow + 1)):
+        for column in range(0, numColumn + 1):
+            topLeft = selectedCell[row - 1][column - 1] if row > 0 and column > 0 else 0
+            topRight = selectedCell[row - 1][column] if row > 0 and column <= numColumn else 0
+            bottomLeft = selectedCell[row][column - 1] if row <= numRow and column > 0 else 0
+            bottomRight = selectedCell[row][column] if row <= numRow and column <= numColumn else 0
+            
+            if topLeft == 1 and bottomRight == 1 and topRight == 0 and bottomLeft == 0:
+                local_dead.append([row, column])
+            elif topRight == 1 and bottomLeft == 1 and topLeft == 0 and bottomRight == 0:
+                local_dead.append([row, column])
+    
+    return local_vertices, local_dead
+
+
 def drawLine(optimizeMode=0):
     global mazeVertex, deadVertex, showPath, showVertex, showBorder, showSolution
     
@@ -765,61 +789,30 @@ def drawLine(optimizeMode=0):
         maze.delete('line_Border')
         numberEdge.configure(text='')
     
-    # Show vertex
+    # Show vertex - with parallelization
     if optimizeMode == 0:
         maze.delete('line_Vertex')
-        mazeVertex = []
-        deadVertex = []
         
-        for row in range(0, numRow):
-            for column in range(0, numColumn):
-                if selectedCell[row][column] == 1:
-                    # When FastCalc is OFF - do full vertex detection (outer + inner)
-                    if fastCalc.get() == 0:
-                        # Outer Vertex
-                        if selectedCell[row - 1][column] == 0 and selectedCell[row][column - 1] == 0 and selectedCell[row - 1][column - 1] == 0:
-                            mazeVertex.append([row, column])
-                        if selectedCell[row - 1][column] == 0 and selectedCell[row][column + 1] == 0 and selectedCell[row - 1][column + 1] == 0:
-                            mazeVertex.append([row, column + 1])
-                        if selectedCell[row + 1][column] == 0 and selectedCell[row][column - 1] == 0 and selectedCell[row + 1][column - 1] == 0:
-                            mazeVertex.append([row + 1, column])
-                        if selectedCell[row + 1][column] == 0 and selectedCell[row][column + 1] == 0 and selectedCell[row + 1][column + 1] == 0:
-                            mazeVertex.append([row + 1, column + 1])
-                        
-                        # Inner Vertex
-                        if selectedCell[row - 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row - 1][column - 1] == 0:
-                            mazeVertex.append([row, column])
-                        if selectedCell[row - 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row - 1][column + 1] == 0:
-                            mazeVertex.append([row, column + 1])
-                        if selectedCell[row + 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row + 1][column - 1] == 0:
-                            mazeVertex.append([row + 1, column])
-                        if selectedCell[row + 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row + 1][column + 1] == 0:
-                            mazeVertex.append([row + 1, column + 1])
-                    
-                    # When FastCalc is ON - only detect inner vertices (faster)
-                    else:
-                        # Inner Vertex only
-                        if selectedCell[row - 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row - 1][column - 1] == 0:
-                            mazeVertex.append([row, column])
-                        if selectedCell[row - 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row - 1][column + 1] == 0:
-                            mazeVertex.append([row, column + 1])
-                        if selectedCell[row + 1][column] == 1 and selectedCell[row][column - 1] == 1 and selectedCell[row + 1][column - 1] == 0:
-                            mazeVertex.append([row + 1, column])
-                        if selectedCell[row + 1][column] == 1 and selectedCell[row][column + 1] == 1 and selectedCell[row + 1][column + 1] == 0:
-                            mazeVertex.append([row + 1, column + 1])
+        # Split into chunks for parallel processing
+        chunk_size = max(1, numRow // 4)
+        futures = []
+        fast_calc_mode = fastCalc.get()
         
-        # Detect dead vertices
-        for row in range(0, numRow + 1):
-            for column in range(0, numColumn + 1):
-                topLeft = selectedCell[row - 1][column - 1] if row > 0 and column > 0 else 0
-                topRight = selectedCell[row - 1][column] if row > 0 and column <= numColumn else 0
-                bottomLeft = selectedCell[row][column - 1] if row <= numRow and column > 0 else 0
-                bottomRight = selectedCell[row][column] if row <= numRow and column <= numColumn else 0
-                
-                if topLeft == 1 and bottomRight == 1 and topRight == 0 and bottomLeft == 0:
-                    deadVertex.append([row, column])
-                elif topRight == 1 and bottomLeft == 1 and topLeft == 0 and bottomRight == 0:
-                    deadVertex.append([row, column])
+        for i in range(0, numRow, chunk_size):
+            end = min(i + chunk_size, numRow)
+            future = executor.submit(detect_vertices_chunk, i, end, fast_calc_mode)
+            futures.append(future)
+        
+        # Collect results
+        all_vertices = []
+        all_dead = []
+        for future in futures:
+            vertices, dead = future.result()
+            all_vertices.extend(vertices)
+            all_dead.extend(dead)
+        
+        mazeVertex = all_vertices
+        deadVertex = all_dead
         
         if showVertex.get() == 1:
             for i in range(len(mazeVertex)):
@@ -828,7 +821,6 @@ def drawLine(optimizeMode=0):
                                column * cellSize + 3, row * cellSize + 3,
                                fill=Color_Line_Vertex, width=0, tags='line_Vertex')
             
-            # Draw dead vertices in dark purple
             for i in range(len(deadVertex)):
                 row, column = deadVertex[i]
                 maze.create_oval(column * cellSize - 3, row * cellSize - 3, 
@@ -924,11 +916,24 @@ def crossesDeadVertex(x0, y0, x1, y1):
     return False
 
 
+# Parallel path calculation helper
+def calculate_paths_chunk(vertex_indices, maze_vertex_copy):
+    """Calculate paths for a chunk of vertex pairs - runs in thread"""
+    local_paths = []
+    for i in vertex_indices:
+        y0, x0 = maze_vertex_copy[i]
+        for j in range(i + 1, len(maze_vertex_copy)):
+            y1, x1 = maze_vertex_copy[j]
+            if legitPath(x0, y0, x1, y1) == True:
+                distance = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+                local_paths.append([i, j, distance, x0, y0, x1, y1])
+    return local_paths
+
+
 def drawLine_Path(optimizeMode=0):
     Timer_Solution = time.perf_counter()
     pathLength = 0
     
-    # Always delete line_Path_Point when recalculating
     maze.delete('line_Path_Point')
     
     if optimizeMode == 0:
@@ -965,20 +970,46 @@ def drawLine_Path(optimizeMode=0):
                 distance = math.sqrt((local_startX - x0) ** 2 + (local_startY - y0) ** 2)
                 allPath.append([-2, i, distance])
     
-    # Line vertex - vertex
+    # Line vertex - vertex with parallelization
     if optimizeMode == 0:
         mazePath = []
-        for i in range(len(mazeVertex)):
-            y0, x0 = mazeVertex[i]
-            for j in range(i + 1, len(mazeVertex)):
-                y1, x1 = mazeVertex[j]
-                if legitPath(x0, y0, x1, y1) == True:
+        vertex_count = len(mazeVertex)
+        
+        if vertex_count > 50:  # Only parallelize for larger graphs
+            # Make a copy for thread safety
+            maze_vertex_copy = mazeVertex.copy()
+            
+            # Split into chunks
+            chunk_size = max(1, vertex_count // 4)
+            futures = []
+            
+            for i in range(0, vertex_count, chunk_size):
+                end = min(i + chunk_size, vertex_count)
+                future = executor.submit(calculate_paths_chunk, list(range(i, end)), maze_vertex_copy)
+                futures.append(future)
+            
+            # Collect results and draw on main thread
+            for future in futures:
+                paths = future.result()
+                for i, j, distance, x0, y0, x1, y1 in paths:
                     if showPath.get() == 1:
                         maze.create_line(x0 * cellSize, y0 * cellSize, x1 * cellSize, y1 * cellSize,
                                        fill=Color_Line_Path, width=1, tags='line_Path')
                     countPath += 1
-                    distance = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
                     mazePath.append([i, j, distance])
+        else:
+            # Sequential for small graphs
+            for i in range(len(mazeVertex)):
+                y0, x0 = mazeVertex[i]
+                for j in range(i + 1, len(mazeVertex)):
+                    y1, x1 = mazeVertex[j]
+                    if legitPath(x0, y0, x1, y1) == True:
+                        if showPath.get() == 1:
+                            maze.create_line(x0 * cellSize, y0 * cellSize, x1 * cellSize, y1 * cellSize,
+                                           fill=Color_Line_Path, width=1, tags='line_Path')
+                        countPath += 1
+                        distance = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+                        mazePath.append([i, j, distance])
     else:
         countPath += len(mazePath)
     
@@ -1035,9 +1066,6 @@ def drawLine_Path(optimizeMode=0):
             archiveTimer_Solution.pop(0)
             archiveTimer_Path.pop(0)
         
-        averageTimer_Solution = sum(archiveTimer_Solution) / len(archiveTimer_Solution)
-        maxTimer_Solution = max(archiveTimer_Solution)
-        
         timerProcessing_Solution.configure(text='Solution: ' + 
                                           str(round(Timer_Solution * 1000, 2)) + ' ms\n' +
                                           'Length: ' + str(round(pathLength / cellSize, 2)) + ' cells')
@@ -1080,7 +1108,6 @@ def dijsktra(graph, initial, end):
 
 
 def legitPath(x0, y0, x1, y1, floatMode=0):
-    # Check if path crosses any dead vertex
     if crossesDeadVertex(x0, y0, x1, y1):
         return False
     
@@ -1421,8 +1448,15 @@ window.bind("<Button-3>", LeftMouseDown)
 
 # Set minimum window size
 min_width = mazeWidth + 100
-min_height = mazeHeight + 280  # Increased for taller toolbar
+min_height = mazeHeight + 280
 window.minsize(min_width, min_height)
+
+# Cleanup on exit
+def on_closing():
+    executor.shutdown(wait=False)
+    window.destroy()
+
+window.protocol("WM_DELETE_WINDOW", on_closing)
 
 # Run
 changeMode()
