@@ -35,7 +35,7 @@ try:
 except:
     pass
 
-window.title('Pathseeker by Altah')
+window.title('Pathfinder by Altah')
 try:
     window.iconbitmap(resource_path("icons/icon.ico"))
 except:
@@ -43,16 +43,29 @@ except:
 
 window.state("zoomed")
 
+# Configure grid weights for proper resizing
+window.grid_rowconfigure(0, weight=0)  # Toolbar - fixed size
+window.grid_rowconfigure(1, weight=1)  # Canvas - expandable
+window.grid_columnconfigure(0, weight=1)  # Full width
+
 # Style
 style = ttk.Style()
+style.configure('design1.Toolbutton', 
+                relief='raised', 
+                borderwidth=2)
 style.map('design1.Toolbutton', 
           background=[('selected', 'red'), ('!disabled', 'light gray')], 
           foreground=[('selected', 'blue'), ('active', 'cyan'), ('!disabled', 'dark red')], 
-          font=[('selected', 'calibri 17 bold'), ('!disabled', 'calibri 17')])
+          font=[('selected', 'calibri 14 bold'), ('!disabled', 'calibri 14')],
+          relief=[('pressed', 'sunken'), ('!pressed', 'raised')])
+
+style.configure('design1.TMenubutton',
+                relief='raised',
+                borderwidth=2)
 style.map('design1.TMenubutton',
           background=[('selected', 'white'), ('!disabled', 'light gray')], 
           foreground=[('selected', 'blue'), ('active', 'cyan'), ('!disabled', 'dark red')], 
-          font=[('selected', 'calibri 17 bold'), ('!disabled', 'calibri 17')])
+          font=[('selected', 'calibri 14 bold'), ('!disabled', 'calibri 14')])
 
 # Global variables
 graph = Graph()
@@ -90,10 +103,10 @@ PointSecondary = 0
 mouseTrace = tk.IntVar(value=0)
 showGrid = tk.IntVar(value=1)
 showVertex = tk.IntVar(value=0)
-showPath = tk.IntVar(value=0) 
+showPath = tk.IntVar(value=0)
 showBorder = tk.IntVar(value=0)
 showSolution = tk.IntVar(value=0)
-fastCalc = tk.IntVar(value=1) 
+fastCalc = tk.IntVar(value=1)
 lastMouseX, lastMouseY = 0, 0
 lastCellRow, lastCellColumn = -1, -1
 startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
@@ -131,51 +144,95 @@ Img_Point_IncreaseSize = load_image('icons/Point_IncreaseSize.png')
 Img_Point_DecreaseSize = load_image('icons/Point_DecreaseSize.png')
 
 
+# ====================
+# TOOLBAR SECTION
+# ====================
+
+# Main toolbar frame - increased height for titles
+ToolbarFrame = tk.Frame(master=window, bg='lightgray', relief='raised', bd=2, height=160)
+ToolbarFrame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
+ToolbarFrame.grid_propagate(False)  # Prevent shrinking
+
+# Configure toolbar grid
+for i in range(25):
+    ToolbarFrame.grid_columnconfigure(i, weight=0)
+
+
 # Button modes
 def changeMode():
     global penState
     if penState.get() == 'Point':
-        Maze_SelectAllButton.place_forget()
-        Maze_UnselectAllButton.place_forget()
-        Maze_FirstActionButton.place_forget()
-        Maze_SecondaryActionButton.place_forget()
-        Maze_RandomizeButton.place_forget()
-        Point_FirstActionButton.place(x=100, y=10)
-        Point_SecondaryActionButton.place(x=150, y=10)
-        Point_IncreaseSizeButton.place(x=250, y=10)
-        Point_DecreaseSizeButton.place(x=300, y=10)
+        # Hide Maze buttons and titles
+        Maze_SelectAllButton.grid_remove()
+        Maze_UnselectAllButton.grid_remove()
+        Maze_FirstActionButton.grid_remove()
+        Maze_SecondaryActionButton.grid_remove()
+        Maze_RandomizeButton.grid_remove()
+        Maze_SelectAllLabel.grid_remove()
+        Maze_UnselectAllLabel.grid_remove()
+        Maze_SelectLabel.grid_remove()
+        Maze_UnselectLabel.grid_remove()
+        Maze_RandomLabel.grid_remove()
+        # Show Point buttons and titles
+        Point_FirstActionButton.grid()
+        Point_SecondaryActionButton.grid()
+        Point_IncreaseSizeButton.grid()
+        Point_DecreaseSizeButton.grid()
+        Point_StartLabel.grid()
+        Point_EndLabel.grid()
+        Point_IncreaseLabel.grid()
+        Point_DecreaseLabel.grid()
         mouseSecondary.set(PointSecondary)
     elif penState.get() == 'Maze':
-        Maze_FirstActionButton.place(x=100, y=10)
-        Maze_SecondaryActionButton.place(x=150, y=10)
-        Maze_SelectAllButton.place(x=250, y=10)
-        Maze_UnselectAllButton.place(x=300, y=10)
-        Maze_RandomizeButton.place(x=350, y=10)
-        Point_FirstActionButton.place_forget()
-        Point_SecondaryActionButton.place_forget()
-        Point_IncreaseSizeButton.place_forget()
-        Point_DecreaseSizeButton.place_forget()
+        # Show Maze buttons and titles
+        Maze_FirstActionButton.grid()
+        Maze_SecondaryActionButton.grid()
+        Maze_SelectAllButton.grid()
+        Maze_UnselectAllButton.grid()
+        Maze_RandomizeButton.grid()
+        Maze_SelectAllLabel.grid()
+        Maze_UnselectAllLabel.grid()
+        Maze_SelectLabel.grid()
+        Maze_UnselectLabel.grid()
+        Maze_RandomLabel.grid()
+        # Hide Point buttons and titles
+        Point_FirstActionButton.grid_remove()
+        Point_SecondaryActionButton.grid_remove()
+        Point_IncreaseSizeButton.grid_remove()
+        Point_DecreaseSizeButton.grid_remove()
+        Point_StartLabel.grid_remove()
+        Point_EndLabel.grid_remove()
+        Point_IncreaseLabel.grid_remove()
+        Point_DecreaseLabel.grid_remove()
         mouseSecondary.set(MazeSecondary)
 
 
-# Frames
-FrameMode = tk.Frame(master=window, bg='white', bd=1, relief='sunken', height=100, width=50)
-FrameMode.place(x=5, y=5)
+# === ROW 0: Section Header ===
+ttk.Label(ToolbarFrame, text="Mode:", font=('Calibri', 12, 'bold'), background='lightgray').grid(
+    row=0, column=0, padx=5, pady=2, sticky='w')
 
-FrameTool = tk.Frame(master=window, bg='white', bd=1, relief='sunken', height=100, width=400)
-FrameTool.place(x=95, y=5)
-
-FrameDebug = tk.Frame(master=window, bg='white', bd=1, relief='sunken', height=100, width=150)
-FrameDebug.place(x=545, y=5)
-
-# Mode buttons
-MazeModeButton = ttk.Radiobutton(master=window, image=Img_Mode_Maze, command=lambda: changeMode(),
+# Mode buttons - VERTICAL LAYOUT
+MazeModeButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Mode_Maze, command=lambda: changeMode(),
                                   style='design1.Toolbutton', variable=penState, value='Maze')
-MazeModeButton.place(x=10, y=10)
+MazeModeButton.grid(row=1, column=0, padx=5, pady=(2,0))
 
-PointModeButton = ttk.Radiobutton(master=window, image=Img_Mode_Point, command=lambda: changeMode(),
+ttk.Label(ToolbarFrame, text="Maze", font=('Calibri', 9), background='lightgray').grid(
+    row=2, column=0, pady=(0,2))
+
+PointModeButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Mode_Point, command=lambda: changeMode(),
                                    style='design1.Toolbutton', variable=penState, value='Point')
-PointModeButton.place(x=10, y=60)
+PointModeButton.grid(row=3, column=0, padx=5, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Point", font=('Calibri', 9), background='lightgray').grid(
+    row=4, column=0, pady=(0,2))
+
+# Separator
+ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=1, rowspan=5, sticky='ns', padx=10)
+
+
+# === Tools Section ===
+ttk.Label(ToolbarFrame, text="Tools:", font=('Calibri', 12, 'bold'), background='lightgray').grid(
+    row=0, column=2, padx=5, pady=2, sticky='w')
 
 
 def setMouseSecondary():
@@ -185,6 +242,272 @@ def setMouseSecondary():
     elif penState.get() == 'Maze':
         MazeSecondary = mouseSecondary.get()
 
+
+# Maze tools - ROW 1
+Maze_FirstActionButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Maze_SelectCell, 
+                                          command=(lambda: setMouseSecondary()),
+                                          style='design1.Toolbutton', variable=mouseSecondary, value=0)
+Maze_FirstActionButton.grid(row=1, column=2, padx=3, pady=(2,0))
+
+Maze_SelectLabel = ttk.Label(ToolbarFrame, text="Select", font=('Calibri', 9), background='lightgray')
+Maze_SelectLabel.grid(row=2, column=2, pady=(0,2))
+
+Maze_SecondaryActionButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Maze_UnselectCell, 
+                                              command=lambda: setMouseSecondary(),
+                                              style='design1.Toolbutton', variable=mouseSecondary, value=1)
+Maze_SecondaryActionButton.grid(row=1, column=3, padx=3, pady=(2,0))
+
+Maze_UnselectLabel = ttk.Label(ToolbarFrame, text="Unselect", font=('Calibri', 9), background='lightgray')
+Maze_UnselectLabel.grid(row=2, column=3, pady=(0,2))
+
+Maze_SelectAllButton = ttk.Button(master=ToolbarFrame, image=Img_Maze_SelectAll, 
+                                   command=lambda: MassSelected(1), style='design1.Toolbutton')
+Maze_SelectAllButton.grid(row=1, column=4, padx=3, pady=(2,0))
+
+Maze_SelectAllLabel = ttk.Label(ToolbarFrame, text="All", font=('Calibri', 9), background='lightgray')
+Maze_SelectAllLabel.grid(row=2, column=4, pady=(0,2))
+
+Maze_UnselectAllButton = ttk.Button(master=ToolbarFrame, image=Img_Maze_UnselectAll, 
+                                     command=lambda: MassSelected(0), style='design1.Toolbutton')
+Maze_UnselectAllButton.grid(row=1, column=5, padx=3, pady=(2,0))
+
+Maze_UnselectAllLabel = ttk.Label(ToolbarFrame, text="Clear", font=('Calibri', 9), background='lightgray')
+Maze_UnselectAllLabel.grid(row=2, column=5, pady=(0,2))
+
+Maze_RandomizeButton = ttk.Button(master=ToolbarFrame, text='Random', 
+                                   command=lambda: generateRandomMaze(), style='design1.Toolbutton')
+Maze_RandomizeButton.grid(row=1, column=6, padx=3, pady=(2,0))
+
+Maze_RandomLabel = ttk.Label(ToolbarFrame, text="Generate", font=('Calibri', 9), background='lightgray')
+Maze_RandomLabel.grid(row=2, column=6, pady=(0,2))
+
+# Point tools
+Point_FirstActionButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Point_Start, 
+                                           command=(lambda: setMouseSecondary()),
+                                           style='design1.Toolbutton', variable=mouseSecondary, value=0)
+Point_FirstActionButton.grid(row=1, column=2, padx=3, pady=(2,0))
+
+Point_StartLabel = ttk.Label(ToolbarFrame, text="Start", font=('Calibri', 9), background='lightgray')
+Point_StartLabel.grid(row=2, column=2, pady=(0,2))
+
+Point_SecondaryActionButton = ttk.Radiobutton(master=ToolbarFrame, image=Img_Point_End, 
+                                               command=lambda: setMouseSecondary(),
+                                               style='design1.Toolbutton', variable=mouseSecondary, value=1)
+Point_SecondaryActionButton.grid(row=1, column=3, padx=3, pady=(2,0))
+
+Point_EndLabel = ttk.Label(ToolbarFrame, text="End", font=('Calibri', 9), background='lightgray')
+Point_EndLabel.grid(row=2, column=3, pady=(0,2))
+
+
+def changePointSize(diff=0):
+    global pointSize, startPointX, startPointY, endPointX, endPointY
+    pointSize += diff
+    if pointSize > 9:
+        pointSize = 9
+    if pointSize < 1:
+        pointSize = 1
+    maze.delete('Point')
+    if startPointX != -1 and startPointY != -1:
+        maze.create_oval(startPointX + pointSize, startPointY + pointSize, 
+                        startPointX - pointSize, startPointY - pointSize, 
+                        fill=Color_PointStart, tags=['Point', 'Start'])
+    if endPointX != -1 and endPointY != -1:
+        maze.create_oval(endPointX + pointSize, endPointY + pointSize, 
+                        endPointX - pointSize, endPointY - pointSize, 
+                        fill=Color_PointEnd, tags=['Point', 'End'])
+
+
+Point_IncreaseSizeButton = ttk.Button(master=ToolbarFrame, image=Img_Point_IncreaseSize, 
+                                       command=lambda: changePointSize(1), style='design1.Toolbutton')
+Point_IncreaseSizeButton.grid(row=1, column=4, padx=3, pady=(2,0))
+
+Point_IncreaseLabel = ttk.Label(ToolbarFrame, text="Bigger", font=('Calibri', 9), background='lightgray')
+Point_IncreaseLabel.grid(row=2, column=4, pady=(0,2))
+
+Point_DecreaseSizeButton = ttk.Button(master=ToolbarFrame, image=Img_Point_DecreaseSize, 
+                                       command=lambda: changePointSize(-1), style='design1.Toolbutton')
+Point_DecreaseSizeButton.grid(row=1, column=5, padx=3, pady=(2,0))
+
+Point_DecreaseLabel = ttk.Label(ToolbarFrame, text="Smaller", font=('Calibri', 9), background='lightgray')
+Point_DecreaseLabel.grid(row=2, column=5, pady=(0,2))
+
+# Separator
+ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=7, rowspan=5, sticky='ns', padx=10)
+
+
+# === Display Section ===
+ttk.Label(ToolbarFrame, text="Display:", font=('Calibri', 12, 'bold'), background='lightgray').grid(
+    row=0, column=8, padx=5, pady=2, sticky='w')
+
+Debug_RenderGridButton = ttk.Checkbutton(master=ToolbarFrame, image=Img_Debug_showGrid, 
+                                          style='design1.Toolbutton', command=lambda: drawGrid(),
+                                          variable=showGrid, onvalue=1, offvalue=0)
+Debug_RenderGridButton.grid(row=1, column=8, padx=3, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Grid", font=('Calibri', 9), background='lightgray').grid(
+    row=2, column=8, pady=(0,2))
+
+Debug_MouseTracerButton = ttk.Checkbutton(master=ToolbarFrame, image=Img_Debug_MouseTrace, 
+                                           style='design1.Toolbutton', variable=mouseTrace, 
+                                           onvalue=1, offvalue=0)
+Debug_MouseTracerButton.grid(row=1, column=9, padx=3, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Trace", font=('Calibri', 9), background='lightgray').grid(
+    row=2, column=9, pady=(0,2))
+
+Debug_BorderVertexButton = ttk.Checkbutton(master=ToolbarFrame, image=Img_Debug_showVertex, 
+                                            style='design1.Toolbutton', command=lambda: drawLine(),
+                                            variable=showVertex, onvalue=1, offvalue=0)
+Debug_BorderVertexButton.grid(row=1, column=10, padx=3, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Vertices", font=('Calibri', 9), background='lightgray').grid(
+    row=2, column=10, pady=(0,2))
+
+Debug_BorderLineButton = ttk.Checkbutton(master=ToolbarFrame, image=Img_Debug_showBorder, 
+                                          style='design1.Toolbutton', command=lambda: drawLine(),
+                                          variable=showBorder, onvalue=1, offvalue=0)
+Debug_BorderLineButton.grid(row=3, column=8, padx=3, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Border", font=('Calibri', 9), background='lightgray').grid(
+    row=4, column=8, pady=(0,2))
+
+Debug_BorderPathButton = ttk.Checkbutton(master=ToolbarFrame, image=Img_Debug_showPath, 
+                                          style='design1.Toolbutton', command=lambda: drawLine(),
+                                          variable=showPath, onvalue=1, offvalue=0)
+Debug_BorderPathButton.grid(row=3, column=9, padx=3, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Paths", font=('Calibri', 9), background='lightgray').grid(
+    row=4, column=9, pady=(0,2))
+
+Debug_SolutionButton = ttk.Checkbutton(master=ToolbarFrame, image=Img_Debug_showSolution, 
+                                        style='design1.Toolbutton', 
+                                        command=lambda: [drawLine(), drawLine(optimizeMode=1)],
+                                        variable=showSolution, onvalue=1, offvalue=0)
+Debug_SolutionButton.grid(row=3, column=10, padx=3, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Solution", font=('Calibri', 9), background='lightgray').grid(
+    row=4, column=10, pady=(0,2))
+
+Debug_FastCalcButton = ttk.Checkbutton(master=ToolbarFrame, text='FastCalc', 
+                                        style='design1.Toolbutton', command=lambda: drawLine(),
+                                        variable=fastCalc, onvalue=1, offvalue=0)
+Debug_FastCalcButton.grid(row=3, column=11, padx=3, pady=(2,0))
+
+ttk.Label(ToolbarFrame, text="Quick", font=('Calibri', 9), background='lightgray').grid(
+    row=4, column=11, pady=(0,2))
+
+# Separator
+ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=12, rowspan=5, sticky='ns', padx=10)
+
+
+# === Statistics Section ===
+ttk.Label(ToolbarFrame, text="Statistics:", font=('Calibri', 12, 'bold'), background='lightgray').grid(
+    row=0, column=13, padx=5, pady=2, sticky='w')
+
+numberVertex = ttk.Label(ToolbarFrame, text='Vertices: 0', font=('Calibri', 10), background='lightgray')
+numberVertex.grid(row=1, column=13, padx=5, pady=2, sticky='w')
+
+numberEdge = ttk.Label(ToolbarFrame, text='', font=('Calibri', 10), background='lightgray')
+numberEdge.grid(row=2, column=13, padx=5, pady=2, sticky='w')
+
+numberPath = ttk.Label(ToolbarFrame, text='', font=('Calibri', 10), background='lightgray')
+numberPath.grid(row=3, column=13, padx=5, pady=2, sticky='w')
+
+timerProcessing_Path = ttk.Label(ToolbarFrame, text='', font=('Calibri', 9), background='lightgray')
+timerProcessing_Path.grid(row=1, column=14, padx=5, pady=2, sticky='w')
+
+timerProcessing_Solution = ttk.Label(ToolbarFrame, text='', font=('Calibri', 9), background='lightgray')
+timerProcessing_Solution.grid(row=2, column=14, rowspan=2, padx=5, pady=2, sticky='w')
+
+# Separator
+ttk.Separator(ToolbarFrame, orient='vertical').grid(row=0, column=15, rowspan=5, sticky='ns', padx=10)
+
+
+# === Grid Size Selector ===
+ttk.Label(ToolbarFrame, text="Grid:", font=('Calibri', 12, 'bold'), background='lightgray').grid(
+    row=0, column=16, padx=5, pady=2, sticky='w')
+
+
+# Helper functions for grid dimension display
+def cellSizeToDimensions(size):
+    """Convert cell size to grid dimensions string"""
+    cols = int(mazeWidth / size)
+    rows = int(mazeHeight / size)
+    return f"{cols} x {rows}"
+
+
+def dimensionsToCellSize(dimensions_str):
+    """Convert dimensions string back to cell size"""
+    cols = int(dimensions_str.split(' x ')[0])
+    return int(mazeWidth / cols)
+
+
+# Grid size customization
+def resizeGrid(dimensions_str):
+    global cellSize, numRow, numColumn, selectedCell, penState, mazeHeight, mazeWidth
+    global startPointX, startPointY, endPointX, endPointY
+    global cellRectangles, lastCellRow, lastCellColumn
+    
+    new_cellSize = dimensionsToCellSize(dimensions_str)
+    
+    if new_cellSize != cellSize:
+        answer = tk.messagebox.askokcancel(title='Resize grid',
+                                          message='By resizing the grid, you will clear everything in the grid')
+    else:
+        answer = True
+    
+    if answer:
+        lastCellRow, lastCellColumn = -1, -1
+        cellSize = new_cellSize
+        numRow = int(mazeHeight / cellSize)
+        numColumn = int(mazeWidth / cellSize)
+        selectedCell = [[0] * (numColumn + 1) for i in range(numRow + 1)]
+        cellRectangles.clear()
+        maze.delete('all')
+        drawGrid()
+        maze.tag_raise('outline')
+        penState.set('Maze')
+        startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
+        changeMode()
+    else:
+        varCellDimensions.set(cellSizeToDimensions(cellSize))
+
+
+# Available cell sizes (20 and above)
+availableCellSizes = [20, 25, 30, 36, 45, 50, 60]
+dimensionOptions = [cellSizeToDimensions(size) for size in availableCellSizes]
+
+varCellDimensions = tk.StringVar(value=cellSizeToDimensions(cellSize))
+cellSizeSelector = ttk.OptionMenu(ToolbarFrame, varCellDimensions, cellSizeToDimensions(cellSize), 
+                                  *dimensionOptions, command=resizeGrid, 
+                                  style='design1.TMenubutton')
+cellSizeSelector.grid(row=1, column=16, padx=5, pady=2, rowspan=2, sticky='w')
+
+ttk.Label(ToolbarFrame, text="Dimensions", font=('Calibri', 9), background='lightgray').grid(
+    row=3, column=16, pady=(0,2))
+
+
+# ====================
+# CANVAS SECTION
+# ====================
+
+# Canvas frame
+CanvasFrame = tk.Frame(master=window, bg=Color_MazeBackground)
+CanvasFrame.grid(row=1, column=0, sticky='nsew', padx=20, pady=(20, 10))
+
+# Configure grid for canvas frame
+CanvasFrame.grid_rowconfigure(0, weight=1)
+CanvasFrame.grid_columnconfigure(0, weight=1)
+
+# Canvas
+maze = tk.Canvas(master=CanvasFrame, height=mazeHeight, width=mazeWidth, bg=Color_NonSelectedCells, 
+                 border=0, borderwidth=0, highlightbackground="black", highlightthickness=2)
+maze.grid(row=0, column=0)
+
+
+# ====================
+# CORE FUNCTIONS
+# ====================
 
 def updateCellVisual(row, column):
     """Update a single cell's visual appearance using itemconfig for performance"""
@@ -292,17 +615,11 @@ def generateRandomMaze():
     cellRectangles.clear()
     
     # Prim's algorithm for maze generation
-    # Use spacing of 2 to create 1-cell thick walls
     spacing = 2
     
     # Calculate effective grid size (handle even/odd dimensions)
-    # For even dimensions, we need to start at 1 instead of 0
     start_offset_row = 1 if numRow % 2 == 0 else 0
     start_offset_col = 1 if numColumn % 2 == 0 else 0
-    
-    # Calculate max positions
-    max_row = numRow - 1 if numRow % 2 == 1 else numRow - 2
-    max_col = numColumn - 1 if numColumn % 2 == 1 else numColumn - 2
     
     # Start with a random cell on the appropriate grid
     possible_rows = list(range(start_offset_row, numRow, spacing))
@@ -366,7 +683,6 @@ def generateRandomMaze():
             removed_walls.append((wall_row, wall_col))
     
     # Add loops: randomly remove some walls between existing passages
-    # 10-15% chance to create a loop for each removed wall
     loop_chance = 0.12
     for wall_row, wall_col in removed_walls:
         if random.random() < loop_chance:
@@ -403,176 +719,6 @@ def generateRandomMaze():
     drawGrid()
     drawLine()
     drawLine(optimizeMode=1)
-
-
-
-# Controller board
-Maze_SelectAllButton = ttk.Button(master=window, image=Img_Maze_SelectAll, 
-                                   command=lambda: MassSelected(1), style='design1.Toolbutton')
-
-Maze_UnselectAllButton = ttk.Button(master=window, image=Img_Maze_UnselectAll, 
-                                     command=lambda: MassSelected(0), style='design1.Toolbutton')
-
-Maze_RandomizeButton = ttk.Button(master=window, text='Random', 
-                                   command=lambda: generateRandomMaze(), style='design1.Toolbutton')
-
-Maze_FirstActionButton = ttk.Radiobutton(master=window, image=Img_Maze_SelectCell, 
-                                          command=(lambda: setMouseSecondary()),
-                                          style='design1.Toolbutton', variable=mouseSecondary, value=0)
-
-Maze_SecondaryActionButton = ttk.Radiobutton(master=window, image=Img_Maze_UnselectCell, 
-                                              command=lambda: setMouseSecondary(),
-                                              style='design1.Toolbutton', variable=mouseSecondary, value=1)
-
-Point_FirstActionButton = ttk.Radiobutton(master=window, image=Img_Point_Start, 
-                                           command=(lambda: setMouseSecondary()),
-                                           style='design1.Toolbutton', variable=mouseSecondary, value=0)
-
-Point_SecondaryActionButton = ttk.Radiobutton(master=window, image=Img_Point_End, 
-                                               command=lambda: setMouseSecondary(),
-                                               style='design1.Toolbutton', variable=mouseSecondary, value=1)
-
-
-def changePointSize(diff=0):
-    global pointSize, startPointX, startPointY, endPointX, endPointY
-    pointSize += diff
-    if pointSize > 9:
-        pointSize = 9
-    if pointSize < 1:
-        pointSize = 1
-    maze.delete('Point')
-    if startPointX != -1 and startPointY != -1:
-        maze.create_oval(startPointX + pointSize, startPointY + pointSize, 
-                        startPointX - pointSize, startPointY - pointSize, 
-                        fill=Color_PointStart, tags=['Point', 'Start'])
-    if endPointX != -1 and endPointY != -1:
-        maze.create_oval(endPointX + pointSize, endPointY + pointSize, 
-                        endPointX - pointSize, endPointY - pointSize, 
-                        fill=Color_PointEnd, tags=['Point', 'End'])
-
-
-Point_IncreaseSizeButton = ttk.Button(master=window, image=Img_Point_IncreaseSize, 
-                                       command=lambda: changePointSize(1), style='design1.Toolbutton')
-
-Point_DecreaseSizeButton = ttk.Button(master=window, image=Img_Point_DecreaseSize, 
-                                       command=lambda: changePointSize(-1), style='design1.Toolbutton')
-
-# Maze visualization
-Debug_RenderGridButton = ttk.Checkbutton(master=window, image=Img_Debug_showGrid, 
-                                          style='design1.Toolbutton', command=lambda: drawGrid(),
-                                          variable=showGrid, onvalue=1, offvalue=0)
-Debug_RenderGridButton.place(x=550, y=10)
-
-Debug_MouseTracerButton = ttk.Checkbutton(master=window, image=Img_Debug_MouseTrace, 
-                                           style='design1.Toolbutton', variable=mouseTrace, 
-                                           onvalue=1, offvalue=0)
-Debug_MouseTracerButton.place(x=600, y=10)
-
-Debug_BorderVertexButton = ttk.Checkbutton(master=window, image=Img_Debug_showVertex, 
-                                            style='design1.Toolbutton', command=lambda: drawLine(),
-                                            variable=showVertex, onvalue=1, offvalue=0)
-Debug_BorderVertexButton.place(x=650, y=10)
-
-Debug_BorderLineButton = ttk.Checkbutton(master=window, image=Img_Debug_showBorder, 
-                                          style='design1.Toolbutton', command=lambda: drawLine(),
-                                          variable=showBorder, onvalue=1, offvalue=0)
-Debug_BorderLineButton.place(x=550, y=60)
-
-Debug_BorderPathButton = ttk.Checkbutton(master=window, image=Img_Debug_showPath, 
-                                          style='design1.Toolbutton', command=lambda: drawLine(),
-                                          variable=showPath, onvalue=1, offvalue=0)
-Debug_BorderPathButton.place(x=600, y=60)
-
-Debug_SolutionButton = ttk.Checkbutton(master=window, image=Img_Debug_showSolution, 
-                                        style='design1.Toolbutton', 
-                                        command=lambda: [drawLine(), drawLine(optimizeMode=1)],
-                                        variable=showSolution, onvalue=1, offvalue=0)
-Debug_SolutionButton.place(x=650, y=60)
-
-Debug_FastCalcButton = ttk.Checkbutton(master=window, text='FastCalc', 
-                                        style='design1.Toolbutton', command=lambda: drawLine(),
-                                        variable=fastCalc, onvalue=1, offvalue=0)
-Debug_FastCalcButton.place(x=700, y=60)
-
-# Statistics
-numberVertex = ttk.Label(window, text='Number of vertices: ' + str(len(mazeVertex)))
-numberVertex.place(x=850, y=10)
-
-numberEdge = ttk.Label(window, text='')
-numberEdge.place(x=850, y=30)
-
-numberPath = ttk.Label(window, text='')
-numberPath.place(x=850, y=50)
-
-timerProcessing_Path = ttk.Label(window, text='')
-timerProcessing_Path.place(x=1050, y=10)
-
-timerProcessing_Solution = ttk.Label(window, text='')
-timerProcessing_Solution.place(x=1050, y=30)
-
-
-# Helper functions for grid dimension display
-def cellSizeToDimensions(size):
-    """Convert cell size to grid dimensions string"""
-    cols = int(mazeWidth / size)
-    rows = int(mazeHeight / size)
-    return f"{cols} x {rows}"
-
-
-def dimensionsToCellSize(dimensions_str):
-    """Convert dimensions string back to cell size"""
-    cols = int(dimensions_str.split(' x ')[0])
-    return int(mazeWidth / cols)
-
-
-# Grid size customization
-def resizeGrid(dimensions_str):
-    global cellSize, numRow, numColumn, selectedCell, penState, mazeHeight, mazeWidth
-    global startPointX, startPointY, endPointX, endPointY
-    global cellRectangles, lastCellRow, lastCellColumn
-    
-    new_cellSize = dimensionsToCellSize(dimensions_str)
-    
-    if new_cellSize != cellSize:
-        answer = tk.messagebox.askokcancel(title='Resize grid',
-                                          message='By resizing the grid, you will clear everything in the grid')
-    else:
-        answer = True
-    
-    if answer:
-        lastCellRow, lastCellColumn = -1, -1
-        cellSize = new_cellSize
-        numRow = int(mazeHeight / cellSize)
-        numColumn = int(mazeWidth / cellSize)
-        selectedCell = [[0] * (numColumn + 1) for i in range(numRow + 1)]
-        cellRectangles.clear()
-        maze.delete('all')
-        drawGrid()
-        maze.tag_raise('outline')
-        penState.set('Maze')
-        startPointX, startPointY, endPointX, endPointY = -1, -1, -1, -1
-        changeMode()
-    else:
-        varCellDimensions.set(cellSizeToDimensions(cellSize))
-
-
-# Available cell sizes (20 and above)
-availableCellSizes = [20, 25, 30, 36, 45, 50, 60]
-dimensionOptions = [cellSizeToDimensions(size) for size in availableCellSizes]
-
-varCellDimensions = tk.StringVar(value=cellSizeToDimensions(cellSize))
-cellSizeSelector = ttk.OptionMenu(window, varCellDimensions, cellSizeToDimensions(cellSize), 
-                                  *dimensionOptions, command=resizeGrid, 
-                                  style='design1.TMenubutton')
-cellSizeSelector.place(x=1830, y=5)
-
-# Canvas
-brg = tk.Canvas(master=window, height=mazeHeight + 40, width=mazeWidth + 40, bg=Color_MazeBackground)
-brg.place(x=30, y=100)
-
-maze = tk.Canvas(master=brg, height=mazeHeight, width=mazeWidth, bg=Color_NonSelectedCells, 
-                 border=0, borderwidth=0, highlightbackground="black", highlightthickness=0)
-maze.place(relx=0.5, rely=0.5, anchor='center')
 
 
 def drawGrid():
@@ -700,7 +846,7 @@ def drawLine(optimizeMode=0):
         numberPath.configure(text='')
     
     # Print number
-    numberVertex.configure(text='Number of vertices: ' + str(len(mazeVertex)))
+    numberVertex.configure(text='Vertices: ' + str(len(mazeVertex)))
     maze.tag_raise('line_Path')
     maze.tag_raise('line_Path_Point')
     maze.tag_raise('line_Vertex')
@@ -748,7 +894,7 @@ def drawLine_Border():
                     countEdge += 1
                     maze.create_line(mazeWidth - 1, row * cellSize, mazeWidth - 1, 
                                    (row + 1) * cellSize, fill=Color_Line_Border, width=2, tags='line_Border')
-    numberEdge.configure(text='Number of edges: ' + str(countEdge + 1))
+    numberEdge.configure(text='Edges: ' + str(countEdge + 1))
 
 
 def crossesDeadVertex(x0, y0, x1, y1):
@@ -850,11 +996,11 @@ def drawLine_Path(optimizeMode=0):
                 distance = math.sqrt((local_endX - x0) ** 2 + (local_endY - y0) ** 2)
                 allPath.append([i, -1, distance])
     
-    numberPath.configure(text='Number of paths: ' + str(countPath))
+    numberPath.configure(text='Paths: ' + str(countPath))
     
     if optimizeMode == 0:
         lastArchiveTimer_Path = time.perf_counter() - Timer_Solution
-        timerProcessing_Path.configure(text='Lastest Visibility Time: ' + 
+        timerProcessing_Path.configure(text='Visibility: ' + 
                                       str(round(lastArchiveTimer_Path * 1000, 2)) + ' ms')
     
     if showSolution.get() == 1 and startPointX != -1 and startPointY != -1 and endPointX != -1 and endPointY != -1 and optimizeMode == 1:
@@ -892,9 +1038,9 @@ def drawLine_Path(optimizeMode=0):
         averageTimer_Solution = sum(archiveTimer_Solution) / len(archiveTimer_Solution)
         maxTimer_Solution = max(archiveTimer_Solution)
         
-        timerProcessing_Solution.configure(text='Lastest Solution Time: ' + 
-                                          str(round(Timer_Solution * 1000, 2)) + ' ms' + '\n' +
-                                          'Solution Length: ' + str(round(pathLength / cellSize, 2)) + ' cell')
+        timerProcessing_Solution.configure(text='Solution: ' + 
+                                          str(round(Timer_Solution * 1000, 2)) + ' ms\n' +
+                                          'Length: ' + str(round(pathLength / cellSize, 2)) + ' cells')
 
 
 def dijsktra(graph, initial, end):
@@ -1275,7 +1421,7 @@ window.bind("<Button-3>", LeftMouseDown)
 
 # Set minimum window size
 min_width = mazeWidth + 100
-min_height = mazeHeight + 200
+min_height = mazeHeight + 280  # Increased for taller toolbar
 window.minsize(min_width, min_height)
 
 # Run
