@@ -7,7 +7,7 @@
 **Pathfinder** is a GUI application built with Python and Tkinter that allows users to draw custom grid-based mazes, generate random mazes using Prim's algorithm, and immediately visualize the shortest path between two points using Dijkstra's algorithm. It serves as both a maze design tool and an educational visualization of graph theory concepts.
 
 
-## ✨ Features
+## Features
 
 
 * **Interactive Maze Drawing:** Easily draw complex maze structures on a customizable grid with smooth Bresenham line drawing for continuous cell selection.
@@ -34,7 +34,7 @@
 * **Optimized Rendering:** Efficient cell-by-cell updates with scheduled redrawing for smooth interaction even with complex mazes.
 
 
-## 🛠️ Installation
+## Installation
 
 
 ### Prerequisites
@@ -60,7 +60,7 @@
     ```
 
 
-## 🎮 Usage Guide
+## Usage Guide
 
 
 The application interface features an organized toolbar at the top with clearly labeled sections and buttons with descriptive titles.
@@ -152,7 +152,7 @@ Real-time information display:
 * **Solution Length:** Length of shortest path in cell units
 
 
-## 🎯 Key Improvements
+## Key Improvements
 
 * **Enhanced UI:** Clean, organized toolbar with section headers and button titles
 * **Random Maze Generation:** One-click generation of perfect mazes with configurable loops
@@ -163,7 +163,7 @@ Real-time information display:
 
 
 
-## 🧮 Algorithm Details
+## Algorithm Details
 
 
 **Maze Generation:** Uses Prim's algorithm to create perfect mazes with 1-cell thick walls. A configurable percentage (~12%) of rejected walls are removed to create loops and multiple solution paths.
@@ -177,24 +177,19 @@ Real-time information display:
 * **Full Mode:** Detects both inner and outer vertices (all corners of the maze structure)
 
 
-## 📊 Performance
+## Performance
 * Efficient cell rendering using dictionary-based rectangle tracking
 * Scheduled redrawing during drag operations (50ms batching)
 * FastCalc mode significantly improves performance on large mazes
 * Average solution time: <10ms for typical mazes
 
 
-## 🐛 Known Limitations
+## Known Limitations
 * Very large mazes (>100×50 cells) may experience slower path calculation with FastCalc disabled
 * Mouse trace debug mode may impact performance when enabled
 
-## 👤 Author
+## Author
 
 
 **Alteracctive** - [GitHub](https://github.com/alteracctive)
 
-
-## 🙏 Acknowledgments
-* Built with Python 3.14 and Tkinter
-* Implements classic graph algorithms (Dijkstra, Prim)
-* Inspired by maze generation and pathfinding visualizers
